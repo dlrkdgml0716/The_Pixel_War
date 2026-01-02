@@ -28,8 +28,8 @@ graph TD
         end
         
         subgraph SpatialDomain [Spatial Domain]
-            SpatialSvc[Spatial: S2/H3 Indexing]
-            SpatialDB[(Spatial DB: PostGIS)]
+            SpatialSvc[Spatial: S2/H3 Logic]
+            SpatialDB[(Spatial DB: MySQL)]
         end
         
         subgraph EventDomain [Event/Log Domain]
@@ -38,7 +38,7 @@ graph TD
         end
     end
 
-    %% Infrastructure (Shared Message Broker)
+    %% Infrastructure
     subgraph MessageBroker [Infrastructure]
         Kafka[[Apache Kafka]]
     end
@@ -54,7 +54,7 @@ graph TD
     SpatialSvc --- SpatialDB
     EventSvc --- LogDB
     
-    %% Inter-service Communication (EDA)
+    %% Inter-service Communication
     PixelSvc -.-> |PixelCaptured Event| Kafka
     Kafka -.-> EventSvc
 ```
