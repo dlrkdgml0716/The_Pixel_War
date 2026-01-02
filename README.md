@@ -28,7 +28,7 @@ graph TD
         end
         
         subgraph SpatialDomain [Spatial Domain]
-            SpatialSvc[Spatial: S2/H3 Logic]
+            SpatialSvc[Spatial: S2/H3 Indexing]
             SpatialDB[(Spatial DB: MySQL)]
         end
         
@@ -38,25 +38,33 @@ graph TD
         end
     end
 
-    %% Infrastructure
+    %% Infrastructure (Shared Message Broker)
     subgraph MessageBroker [Infrastructure]
         Kafka[[Apache Kafka]]
+    end
+
+    %% Persistence Layer (Source of Truth)
+    subgraph Persistence [Final Source of Truth]
+        MainDB[(Main DB: MySQL Cluster)]
     end
 
     %% Relationships
     ClientLayer <--> |WebSocket| AGW
     AGW --> NetFunnel
-    NetFunnel --> PixelSvc
-    NetFunnel --> SpatialSvc
+    NetFunnel --> Microservices
     
     %% Service-DB Ownership
     PixelSvc --- PixelRedis
     SpatialSvc --- SpatialDB
     EventSvc --- LogDB
     
-    %% Inter-service Communication
+    %% Inter-service Communication (EDA)
     PixelSvc -.-> |PixelCaptured Event| Kafka
     Kafka -.-> EventSvc
+    
+    %% Async Flush to Main DB
+    PixelRedis -.-> |Async Write-Back| MainDB
+    SpatialDB --- MainDB
 ```
 
 클라이언트 레이어
