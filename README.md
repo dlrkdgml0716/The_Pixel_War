@@ -1,4 +1,5 @@
 The Pixel War
+
 수만 명의 사용자가 동시에 하나의 거대한 지도 기반 캔버스에 픽셀을 찍으며 영토를 점유하는 실시간 서비스입니다.
 단순한 CRUD를 넘어 고빈도 쓰기 환경에서의 데이터 정합성 보장과 효율적인 공간 인덱싱 아키텍처 구축을 목표로 합니다.
 
@@ -17,30 +18,45 @@ graph TD
         Auth[JWT Auth]
     end
 
-    %% Microservices Layer
-    subgraph Microservices [Core Business Logic]
+    %% Microservices Layer (Database per Service)
+    subgraph Microservices [Core Business Logic - MSA]
         direction TB
-        PixelSvc[Pixel Core: Lua Concurrency]
-        SpatialSvc[Spatial: S2/H3 Indexing]
-        EventSvc[Event: Kafka Streaming]
+        
+        subgraph PixelDomain [Pixel Domain]
+            PixelSvc[Pixel Core: Lua Concurrency]
+            PixelRedis[(Pixel Redis: Lua/ZSET)]
+        end
+        
+        subgraph SpatialDomain [Spatial Domain]
+            SpatialSvc[Spatial: S2/H3 Indexing]
+            SpatialDB[(Spatial DB: PostGIS)]
+        end
+        
+        subgraph EventDomain [Event/Log Domain]
+            EventSvc[Event: Kafka Streaming]
+            LogDB[(TimeSeries DB: InfluxDB)]
+        end
     end
 
-    %% Data & Messaging
-    subgraph Persistence [Data & Messaging Layer]
-        MainDB[(MySQL/PostGIS)]
-        Redis[(Redis: GEO/Lua/ZSET)]
+    %% Infrastructure (Shared Message Broker)
+    subgraph MessageBroker [Infrastructure]
         Kafka[[Apache Kafka]]
-        TimeSeries[(InfluxDB: Trace Log)]
     end
 
     %% Relationships
     ClientLayer <--> |WebSocket| AGW
     AGW --> NetFunnel
-    NetFunnel --> Microservices
+    NetFunnel --> PixelSvc
+    NetFunnel --> SpatialSvc
     
-    PixelSvc --- Redis
-    SpatialSvc --- MainDB
-    Microservices -.-> |PixelCaptured| Kafka
+    %% Service-DB Ownership
+    PixelSvc --- PixelRedis
+    SpatialSvc --- SpatialDB
+    EventSvc --- LogDB
+    
+    %% Inter-service Communication (EDA)
+    PixelSvc -.-> |PixelCaptured Event| Kafka
+    Kafka -.-> EventSvc
 ```
 
 클라이언트 레이어
