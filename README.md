@@ -11,60 +11,56 @@ graph TD
         Mobile[Mobile App - Native View]
     end
 
-    %% Gateway & Traffic Control
-    subgraph TrafficControl [Traffic Management]
+    %% Gateway & Real-time Sync
+    subgraph TrafficControl [Gateway & Broadcast]
         AGW[Spring Cloud Gateway]
         NetFunnel[Virtual Waiting Room - Redis ZSET]
-        Auth[JWT Auth]
+        RedisPubSub((Redis Pub/Sub: Real-time Update))
     end
 
-    %% Microservices Layer (Database per Service)
-    subgraph Microservices [Core Business Logic - MSA]
+    %% Microservices Layer
+    subgraph Microservices [Core Business Logic - Java/Spring]
         direction TB
         
         subgraph PixelDomain [Pixel Domain]
-            PixelSvc[Pixel Core: Lua Concurrency]
-            PixelRedis[(Pixel Redis: Lua/ZSET)]
+            PixelSvc[Pixel Core: Java + Redisson Lock]
+            PixelRedis[(Pixel Redis: State Store)]
         end
         
         subgraph SpatialDomain [Spatial Domain]
-            SpatialSvc[Spatial: S2/H3 Indexing]
+            SpatialSvc[Spatial: Java + S2/H3]
             SpatialDB[(Spatial DB: MySQL)]
         end
-        
-        subgraph EventDomain [Event/Log Domain]
-            EventSvc[Event: Kafka Streaming]
-            LogDB[(TimeSeries DB: InfluxDB)]
+
+        subgraph PersistenceWorker [Persistence Layer]
+            DBWriter[Async DB Writer: Java]
+            MainDB[(Main DB: MySQL Cluster)]
         end
     end
 
-    %% Infrastructure (Shared Message Broker)
-    subgraph MessageBroker [Infrastructure]
+    %% Infrastructure
+    subgraph MessageBroker [Event Bus]
         Kafka[[Apache Kafka]]
     end
 
-    %% Persistence Layer (Source of Truth)
-    subgraph Persistence [Final Source of Truth]
-        MainDB[(Main DB: MySQL Cluster)]
-    end
-
-    %% Relationships
+    %% Relationships & Flow
     ClientLayer <--> |WebSocket| AGW
     AGW --> NetFunnel
-    NetFunnel --> Microservices
+    NetFunnel --> PixelSvc
     
-    %% Service-DB Ownership
-    PixelSvc --- PixelRedis
+    %% Write Path (Java + Redisson)
+    PixelSvc --- |Distributed Lock| PixelRedis
+    PixelSvc -.-> |1. Broadcast| RedisPubSub
+    RedisPubSub -.-> |2. Push| AGW
+    
+    %% Persistence Path (EDA)
+    PixelSvc -.-> |3. PixelCaptured Event| Kafka
+    Kafka -.-> DBWriter
+    DBWriter --- MainDB
+    
+    %% Spatial Path
     SpatialSvc --- SpatialDB
-    EventSvc --- LogDB
-    
-    %% Inter-service Communication (EDA)
-    PixelSvc -.-> |PixelCaptured Event| Kafka
-    Kafka -.-> EventSvc
-    
-    %% Async Flush to Main DB
-    PixelRedis -.-> |Async Write-Back| MainDB
-    SpatialDB --- MainDB
+    SpatialDB -.-> |Sync/ETL| MainDB
 ```
 
 클라이언트 레이어
