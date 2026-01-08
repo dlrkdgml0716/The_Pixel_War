@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  # Pixel Redis: 실시간 픽셀 상태 저장 및 분산 락 관리
+  pixel-redis:
+    image: redis:latest
+    container_name: pixel-redis
+    ports:
+      - "6379:6379"
+
+  # Main DB: 최종 픽셀 데이터 저장용 (MySQL)
+  pixel-db:
+    image: mysql:8.0
+    container_name: pixel-db
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: pixel_war
+    ports:
+      - "3306:3306"
+
+  # Kafka & Zookeeper: 서비스 간 메시지 통로
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+
+  kafka:
+    image: confluentinc/cp-kafka:latest
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
