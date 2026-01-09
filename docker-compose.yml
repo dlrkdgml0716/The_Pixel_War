@@ -1,31 +1,15 @@
-version: '3.8'
-
+version: '3'
 services:
-  # Pixel Redis: 실시간 픽셀 상태 저장 및 분산 락 관리
-  pixel-redis:
-    image: redis:latest
-    container_name: pixel-redis
-    ports:
-      - "6379:6379"
-
-  # Main DB: 최종 픽셀 데이터 저장용 (MySQL)
-  pixel-db:
-    image: mysql:8.0
-    container_name: pixel-db
-    environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: pixel_war
-    ports:
-      - "3306:3306"
-
-  # Kafka & Zookeeper: 서비스 간 메시지 통로
   zookeeper:
-    image: confluentinc/cp-zookeeper:latest
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: pixel-zookeeper
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
 
   kafka:
-    image: confluentinc/cp-kafka:latest
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: pixel-kafka
     depends_on:
       - zookeeper
     ports:
@@ -34,4 +18,22 @@ services:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_ENABLE_KRAFT: "false"
+
+  redis:
+    image: redis:latest
+    container_name: pixel-redis
+    ports:
+      - "6379:6379"
+
+  db:
+    image: mysql:8.0
+    container_name: pixel-db
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: pixel_war # 오타 수정 (pixel_ward -> pixel_war)
