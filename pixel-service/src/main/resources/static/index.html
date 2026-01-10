@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>K-Pixel War: 영토 전쟁</title>
+    <script type="text/javascript" src="https://openapi.map.naver.com/openapi/v3/maps.js?ncpClientId=zx8lobio6s"></script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.5.1/sockjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+
+    <style>
+        body { margin: 0; padding: 0; font-family: 'Arial', sans-serif; overflow: hidden; }
+        #game-container { position: relative; width: 100vw; height: 100vh; }
+
+        /* 지도 레이어 */
+        #map { width: 100%; height: 100%; z-index: 1; }
+
+        /* 픽셀 캔버스 레이어 (지도 위에 투명하게 겹침) */
+        #pixelCanvas {
+            position: absolute; top: 0; left: 0;
+            z-index: 2; pointer-events: auto;
+        }
+
+        /* 컨트롤 패널 */
+        .ui-panel {
+            position: absolute; top: 20px; right: 20px; z-index: 3;
+            background: rgba(255, 255, 255, 0.9); padding: 15px;
+            border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        /* 실시간 뉴스 피드 */
+        #news-feed {
+            position: absolute; bottom: 20px; left: 20px; z-index: 3;
+            width: 300px; max-height: 200px; overflow-y: hidden;
+            background: rgba(0, 0, 0, 0.7); color: white;
+            padding: 10px; border-radius: 5px; font-size: 12px;
+        }
+        .news-item { margin: 5px 0; border-bottom: 1px solid #444; padding-bottom: 3px; }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div id="map"></div>
+    <canvas id="pixelCanvas"></canvas>
+
+    <div class="ui-panel">
+        <h3>🇰🇷 영토 점령전</h3>
+        색상: <input type="color" id="colorPicker" value="#ff0000"><br><br>
+        유저ID: <input type="text" id="userId" value="player1" style="width: 100px;">
+        <p style="font-size: 11px; color: #666;">* 클릭하면 픽셀이 박힙니다!</p>
+    </div>
+
+    <div id="news-feed">
+        <div class="news-item">📢 전쟁이 시작되었습니다!</div>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('pixelCanvas');
+    const ctx = canvas.getContext('2d');
+    const pixelSize = 5; // 픽셀 크기
+
+    // 화면 꽉 차게 캔버스 크기 조절
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    // [1] 네이버 지도 초기화
+    const map = new naver.maps.Map('map', {
+        center: new naver.maps.LatLng(36.3504, 127.3845), // 대한민국 중심 (대전쯤)
+        zoom: 8,
+        draggable: false, // 캔버스 좌표 매칭을 위해 고정
+        scrollWheel: false,
+        disableDoubleClickZoom: true
+    });
+
+    // [2] 초기 픽셀 로딩
+    fetch('/api/pixels')
+        .then(res => res.json())
+        .then(pixels => {
+            pixels.forEach(p => drawPixel(p.x, p.y, p.color));
+        });
+
+    // [3] 웹소켓 연결
+    const socket = new SockJS('/ws-pixel');
+    const stompClient = Stomp.over(socket);
+
+    stompClient.connect({}, () => {
+        console.log("실시간 통신 연결 성공! 🚀");
+        stompClient.subscribe('/topic/pixel', (msg) => {
+            const data = JSON.parse(msg.body);
+            drawPixel(data.x, data.y, data.color);
+            addNews(data.region || '야생', data.userId);
+        });
+    });
+
+    // [4] 클릭 이벤트 (서버 전송)
+    canvas.addEventListener('mousedown', (e) => {
+        const x = Math.floor(e.offsetX / pixelSize);
+        const y = Math.floor(e.offsetY / pixelSize);
+        const color = document.getElementById('colorPicker').value;
+        const userId = document.getElementById('userId').value;
+
+        fetch('/api/pixels', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ x, y, color, userId })
+        });
+    });
+
+    function drawPixel(x, y, color) {
+        ctx.fillStyle = color;
+        ctx.globalAlpha = 0.7; // 밑에 지도 살짝 보이게
+        ctx.fillRect(x * pixelSize, y * pixelSize, pixelSize, pixelSize);
+    }
+
+    function addNews(region, userId) {
+        const feed = document.getElementById('news-feed');
+        const item = document.createElement('div');
+        item.className = 'news-item';
+        item.innerText = `📍 [${region}] ${userId}님이 공격 중!`;
+        feed.prepend(item);
+        if (feed.children.length > 8) feed.lastChild.remove();
+    }
+</script>
+
+</body>
+</html>

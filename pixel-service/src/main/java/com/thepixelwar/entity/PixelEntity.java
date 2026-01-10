@@ -20,7 +20,6 @@ public class PixelEntity {
     private String color;
     private String userId;
 
-    // 편의를 위해 생성자 추가
     public PixelEntity(int x, int y, String color, String userId) {
         this.x = x;
         this.y = y;
