@@ -15,14 +15,14 @@ public class PixelEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private int x;
-    private int y;
+    private double lat;
+    private double lng;
     private String color;
     private String userId;
 
-    public PixelEntity(int x, int y, String color, String userId) {
-        this.x = x;
-        this.y = y;
+    public PixelEntity(double lat, double lng, String color, String userId) {
+        this.lat = lat;
+        this.lng = lng;
         this.color = color;
         this.userId = userId;
     }

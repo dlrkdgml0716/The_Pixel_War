@@ -28,13 +28,13 @@ public class PixelConsumer {
             PixelRequest request = objectMapper.readValue(message, PixelRequest.class);
 
             // DB 저장
-            PixelEntity pixelEntity = new PixelEntity(request.x(), request.y(), request.color(), request.userId());
+            PixelEntity pixelEntity = new PixelEntity(request.lat(), request.lng(), request.color(), request.userId());
             pixelRepository.save(pixelEntity);
 
             // 웹소켓 전송 "/topic/pixel"을 구독 중인 모든 사람한테 픽셀 정보를 던짐!
             messagingTemplate.convertAndSend("/topic/pixel", request);
 
-            log.info("실시간 방송 완료: ({}, {}) -> {}", request.x(), request.y(), request.color());
+            log.info("실시간 방송 완료: ({}, {}) -> {}", request.lat(), request.lng(), request.color());
 
         } catch (Exception e) {
             log.error("컨슈머 작업 중 에러 발생!", e);

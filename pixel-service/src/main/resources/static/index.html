@@ -2,39 +2,24 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>K-Pixel War: 영토 전쟁</title>
-    <script type="text/javascript" src="https://openapi.map.naver.com/openapi/v3/maps.js?ncpClientId=zx8lobio6s"></script>
-
+    <title>K-Pixel War: Reddit r/place 스타일</title>
+    <script type="text/javascript" src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=zx8lobio6s"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.5.1/sockjs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
-
     <style>
         body { margin: 0; padding: 0; font-family: 'Arial', sans-serif; overflow: hidden; }
         #game-container { position: relative; width: 100vw; height: 100vh; }
-
-        /* 지도 레이어 */
         #map { width: 100%; height: 100%; z-index: 1; }
-
-        /* 픽셀 캔버스 레이어 (지도 위에 투명하게 겹침) */
-        #pixelCanvas {
-            position: absolute; top: 0; left: 0;
-            z-index: 2; pointer-events: auto;
-        }
-
-        /* 컨트롤 패널 */
         .ui-panel {
             position: absolute; top: 20px; right: 20px; z-index: 3;
             background: rgba(255, 255, 255, 0.9); padding: 15px;
-            border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.2);
         }
-
-        /* 실시간 뉴스 피드 */
-        #news-feed {
-            position: absolute; bottom: 20px; left: 20px; z-index: 3;
-            width: 300px; max-height: 200px; overflow-y: hidden;
-            background: rgba(0, 0, 0, 0.7); color: white;
-            padding: 10px; border-radius: 5px; font-size: 12px;
-        }
+        .mode-btn { width: 100%; padding: 12px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 14px; margin-bottom: 10px; }
+        .mode-move { background: #4CAF50; color: white; }
+        .mode-attack { background: #f44336; color: white; }
+        .cursor-attack { cursor: crosshair !important; }
+        #news-feed { position: absolute; bottom: 20px; left: 20px; z-index: 3; width: 300px; padding: 10px; background: rgba(0,0,0,0.7); color: white; border-radius: 5px; font-size: 12px; }
         .news-item { margin: 5px 0; border-bottom: 1px solid #444; padding-bottom: 3px; }
     </style>
 </head>
@@ -42,87 +27,177 @@
 
 <div id="game-container">
     <div id="map"></div>
-    <canvas id="pixelCanvas"></canvas>
-
     <div class="ui-panel">
+        <button id="modeBtn" class="mode-btn mode-move">📍 현재 모드: 이동</button>
+        <hr>
         <h3>🇰🇷 영토 점령전</h3>
         색상: <input type="color" id="colorPicker" value="#ff0000"><br><br>
         유저ID: <input type="text" id="userId" value="player1" style="width: 100px;">
-        <p style="font-size: 11px; color: #666;">* 클릭하면 픽셀이 박힙니다!</p>
     </div>
-
-    <div id="news-feed">
-        <div class="news-item">📢 전쟁이 시작되었습니다!</div>
-    </div>
+    <div id="news-feed"><div class="news-item">📢 전쟁이 시작되었습니다!</div></div>
 </div>
 
 <script>
-    const canvas = document.getElementById('pixelCanvas');
-    const ctx = canvas.getContext('2d');
-    const pixelSize = 5; // 픽셀 크기
+    let isAttackMode = false;
+    let pixelMap = new Map();
 
-    // 화면 꽉 차게 캔버스 크기 조절
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
+    // 정밀도를 높여서 더 세밀한 그림이 가능하게 설정 (약 2m 단위)
+    const GRID_PRECISION = 50000;
 
-    // [1] 네이버 지도 초기화
+    // [1] 지도 초기화: 줌 제한 및 더블클릭 줌 방지
     const map = new naver.maps.Map('map', {
-        center: new naver.maps.LatLng(36.3504, 127.3845), // 대한민국 중심 (대전쯤)
-        zoom: 8,
-        draggable: false, // 캔버스 좌표 매칭을 위해 고정
-        scrollWheel: false,
-        disableDoubleClickZoom: true
+        center: new naver.maps.LatLng(36.3504, 127.3845),
+        zoom: 16,
+        minZoom: 10,
+        maxZoom: 19, // 19레벨 이상 확대 방지
+        draggable: true,
+        scrollWheel: true,
+        disableDoubleClickZoom: true // 더블클릭 확대 원천 봉쇄
     });
 
-    // [2] 초기 픽셀 로딩
-    fetch('/api/pixels')
-        .then(res => res.json())
-        .then(pixels => {
-            pixels.forEach(p => drawPixel(p.x, p.y, p.color));
-        });
+    // [2] CanvasOverlay 클래스
+    var CanvasOverlay = function(options) {
+        this._element = document.createElement('canvas');
+        this._ctx = this._element.getContext('2d');
+        this.setPosition(options.position);
+        this.setMap(options.map || null);
+    };
+    CanvasOverlay.prototype = new naver.maps.OverlayView();
+    CanvasOverlay.prototype.constructor = CanvasOverlay;
 
-    // [3] 웹소켓 연결
-    const socket = new SockJS('/ws-pixel');
-    const stompClient = Stomp.over(socket);
+    CanvasOverlay.prototype.onAdd = function() {
+        var overlayLayer = this.getPanes().overlayLayer;
+        this._element.style.position = 'absolute';
+        this._element.style.pointerEvents = 'none';
+        this._element.style.zIndex = 100;
+        overlayLayer.appendChild(this._element);
+    };
 
-    stompClient.connect({}, () => {
-        console.log("실시간 통신 연결 성공! 🚀");
-        stompClient.subscribe('/topic/pixel', (msg) => {
-            const data = JSON.parse(msg.body);
-            drawPixel(data.x, data.y, data.color);
-            addNews(data.region || '야생', data.userId);
+    CanvasOverlay.prototype.draw = function() {
+        if (!this.getMap()) return;
+        var map = this.getMap();
+        var projection = this.getProjection();
+        var bounds = map.getBounds();
+        var size = map.getSize();
+        var zoom = map.getZoom();
+
+        // [핵심] 줌 레벨에 따라 시각적 픽셀 크기 동적 계산
+        // 줌이 커질수록(확대) 픽셀도 커지고, 작아질수록(축소) 깨알처럼 변함
+        const currentPixelSize = Math.max(1, Math.pow(2, zoom - 14) * 4);
+
+        this._element.width = size.width;
+        this._element.height = size.height;
+
+        var sw = bounds.getSW();
+        var ne = bounds.getNE();
+        var nw = new naver.maps.LatLng(ne.lat(), sw.lng());
+        var overlayProjection = this.getProjection();
+        var tlPixel = overlayProjection.fromCoordToOffset(nw);
+
+        this._element.style.left = tlPixel.x + 'px';
+        this._element.style.top = tlPixel.y + 'px';
+
+        this._ctx.clearRect(0, 0, this._element.width, this._element.height);
+
+        pixelMap.forEach(p => {
+            var coord = new naver.maps.LatLng(p.lat, p.lng);
+            var pixelPos = overlayProjection.fromCoordToOffset(coord);
+
+            var x = pixelPos.x - tlPixel.x;
+            var y = pixelPos.y - tlPixel.y;
+
+            this._ctx.fillStyle = p.color;
+            this._ctx.globalAlpha = 0.9;
+            this._ctx.fillRect(x - currentPixelSize/2, y - currentPixelSize/2, currentPixelSize, currentPixelSize);
+
+            // 줌이 어느 정도 확대되었을 때만 테두리를 그려서 격자 느낌 강조
+            if (zoom > 15) {
+                this._ctx.strokeStyle = "rgba(0,0,0,0.1)";
+                this._ctx.lineWidth = 1;
+                this._ctx.strokeRect(x - currentPixelSize/2, y - currentPixelSize/2, currentPixelSize, currentPixelSize);
+            }
         });
+    };
+
+    CanvasOverlay.prototype.onRemove = function() {
+        this._element.parentNode.removeChild(this._element);
+    };
+    CanvasOverlay.prototype.setPosition = function(position) {
+        this._position = position;
+        this.draw();
+    };
+
+    var canvasOverlay = new CanvasOverlay({
+        position: map.getCenter(),
+        map: map
     });
 
-    // [4] 클릭 이벤트 (서버 전송)
-    canvas.addEventListener('mousedown', (e) => {
-        const x = Math.floor(e.offsetX / pixelSize);
-        const y = Math.floor(e.offsetY / pixelSize);
-        const color = document.getElementById('colorPicker').value;
-        const userId = document.getElementById('userId').value;
+    function refreshMap() {
+        canvasOverlay.draw();
+    }
 
+    // [3] 격자 맞춤 함수
+    function snapToGrid(lat, lng) {
+        const snappedLat = Math.round(lat * GRID_PRECISION) / GRID_PRECISION;
+        const snappedLng = Math.round(lng * GRID_PRECISION) / GRID_PRECISION;
+        return { lat: snappedLat, lng: snappedLng };
+    }
+
+    // [4] 데이터 업데이트 (Map 구조로 덮어쓰기 지원)
+    function updatePixelData(pixel) {
+        const snapped = snapToGrid(pixel.lat, pixel.lng);
+        const key = `${snapped.lat},${snapped.lng}`;
+        pixelMap.set(key, { ...pixel, lat: snapped.lat, lng: snapped.lng });
+        refreshMap();
+    }
+
+    // [5] 클릭 이벤트
+    naver.maps.Event.addListener(map, 'click', function(e) {
+        if (!isAttackMode) return;
+        const snapped = snapToGrid(e.coord.lat(), e.coord.lng());
+        const newPixel = {
+            lat: snapped.lat, lng: snapped.lng,
+            color: document.getElementById('colorPicker').value,
+            userId: document.getElementById('userId').value
+        };
+        updatePixelData(newPixel);
         fetch('/api/pixels', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ x, y, color, userId })
+            body: JSON.stringify(newPixel)
         });
     });
 
-    function drawPixel(x, y, color) {
-        ctx.fillStyle = color;
-        ctx.globalAlpha = 0.7; // 밑에 지도 살짝 보이게
-        ctx.fillRect(x * pixelSize, y * pixelSize, pixelSize, pixelSize);
-    }
+    // 초기 로딩
+    fetch('/api/pixels').then(res => res.json()).then(data => {
+        data.forEach(p => updatePixelData(p));
+    });
 
-    function addNews(region, userId) {
-        const feed = document.getElementById('news-feed');
-        const item = document.createElement('div');
-        item.className = 'news-item';
-        item.innerText = `📍 [${region}] ${userId}님이 공격 중!`;
-        feed.prepend(item);
-        if (feed.children.length > 8) feed.lastChild.remove();
-    }
+    // 웹소켓
+    const socket = new SockJS('/ws-pixel');
+    const stompClient = Stomp.over(socket);
+    stompClient.connect({}, () => {
+        stompClient.subscribe('/topic/pixel', (msg) => {
+            updatePixelData(JSON.parse(msg.body));
+        });
+    });
+
+    // [6] 모드 전환: 더블클릭 확대 방지 옵션 상시 유지
+    const modeBtn = document.getElementById('modeBtn');
+    modeBtn.addEventListener('click', () => {
+        isAttackMode = !isAttackMode;
+        if (isAttackMode) {
+            modeBtn.innerText = "⚔️ 현재 모드: 공격";
+            modeBtn.className = "mode-btn mode-attack";
+            document.getElementById('map').classList.add('cursor-attack');
+            map.setOptions({ draggable: false, scrollWheel: false, disableDoubleClickZoom: true });
+        } else {
+            modeBtn.innerText = "📍 현재 모드: 이동";
+            modeBtn.className = "mode-btn mode-move";
+            document.getElementById('map').classList.remove('cursor-attack');
+            map.setOptions({ draggable: true, scrollWheel: true, disableDoubleClickZoom: true });
+        }
+    });
 </script>
-
 </body>
 </html>
