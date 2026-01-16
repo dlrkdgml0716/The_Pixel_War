@@ -36,4 +36,6 @@ services:
       - "3306:3306"
     environment:
       MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: pixel_war # 오타 수정 (pixel_ward -> pixel_war)
+      MYSQL_DATABASE: pixel_war
+    volumes:
+      - ./mysql_data:/var/lib/mysql
