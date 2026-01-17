@@ -1,6 +1,5 @@
 package com.thepixelwar.consumer;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.thepixelwar.dto.PixelRequest;
 import com.thepixelwar.entity.PixelEntity;
@@ -17,9 +16,11 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class PixelConsumer {
 
-    private final ObjectMapper objectMapper; // 역직렬화(문자열 -> 객체)를 위한 도구
+    private final ObjectMapper objectMapper;
     private final PixelRepository pixelRepository;
     private final SimpMessagingTemplate messagingTemplate;
+
+    private static final double GRID_DIVISOR = 10000.0;
 
     @KafkaListener(topics = "pixel-updates", groupId = "pixel-war-group")
     @Transactional
@@ -27,17 +28,28 @@ public class PixelConsumer {
         try {
             PixelRequest request = objectMapper.readValue(message, PixelRequest.class);
 
-            // DB 저장
-            PixelEntity pixelEntity = new PixelEntity(request.x(), request.y(), request.color(), request.userId());
-            pixelRepository.save(pixelEntity);
+            // [수정] floor(내림) 사용
+            int x = (int) Math.floor(request.lat() * GRID_DIVISOR);
+            int y = (int) Math.floor(request.lng() * GRID_DIVISOR);
 
-            // 웹소켓 전송 "/topic/pixel"을 구독 중인 모든 사람한테 픽셀 정보를 던짐!
-            messagingTemplate.convertAndSend("/topic/pixel", request);
+            PixelEntity existingPixel = pixelRepository.findByCoords(x, y);
 
-            log.info("실시간 방송 완료: ({}, {}) -> {}", request.x(), request.y(), request.color());
+            if (existingPixel != null) {
+                existingPixel.setColor(request.color());
+                existingPixel.setUserId(request.userId());
+            } else {
+                pixelRepository.save(new PixelEntity(x, y, request.color(), request.userId()));
+            }
+
+            double snappedLat = (double) x / GRID_DIVISOR;
+            double snappedLng = (double) y / GRID_DIVISOR;
+
+            PixelRequest snappedRequest = new PixelRequest(snappedLat, snappedLng, request.color(), request.userId());
+
+            messagingTemplate.convertAndSend("/topic/pixel", snappedRequest);
 
         } catch (Exception e) {
-            log.error("컨슈머 작업 중 에러 발생!", e);
+            log.error("Kafka Consume Error", e);
         }
     }
 }
