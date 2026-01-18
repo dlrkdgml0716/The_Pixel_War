@@ -21,6 +21,7 @@ public class PixelConsumer {
     private final SimpMessagingTemplate messagingTemplate;
 
     private static final double GRID_DIVISOR = 10000.0;
+    private static final double EPSILON = 0.0000001;
 
     @KafkaListener(topics = "pixel-updates", groupId = "pixel-war-group")
     @Transactional
@@ -29,8 +30,8 @@ public class PixelConsumer {
             PixelRequest request = objectMapper.readValue(message, PixelRequest.class);
 
             // [수정] floor(내림) 사용
-            int x = (int) Math.floor(request.lat() * GRID_DIVISOR);
-            int y = (int) Math.floor(request.lng() * GRID_DIVISOR);
+            int x = (int) Math.floor((request.lat() + EPSILON) * GRID_DIVISOR);
+            int y = (int) Math.floor((request.lng() + EPSILON) * GRID_DIVISOR);
 
             PixelEntity existingPixel = pixelRepository.findByCoords(x, y);
 

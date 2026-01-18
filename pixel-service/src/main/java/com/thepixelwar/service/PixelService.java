@@ -30,25 +30,24 @@ public class PixelService {
     private final PixelRepository pixelRepository;
 
     private static final double GRID_DIVISOR = 10000.0;
+    private static final double EPSILON = 0.0000001;
 
     public String updatePixel(PixelRequest request) {
         // [수정] round(반올림) -> floor(내림) 변경
         // 클릭한 위치가 포함된 격자의 "남서쪽(Left-Bottom)" 모서리 좌표를 인덱스로 잡습니다.
-        int x = (int) Math.floor(request.lat() * GRID_DIVISOR);
-        int y = (int) Math.floor(request.lng() * GRID_DIVISOR);
+        int x = (int) Math.floor((request.lat() + EPSILON) * GRID_DIVISOR);
+        int y = (int) Math.floor((request.lng() + EPSILON) * GRID_DIVISOR);
 
         double snappedLat = (double) x / GRID_DIVISOR;
         double snappedLng = (double) y / GRID_DIVISOR;
 
         PixelRequest snappedRequest = new PixelRequest(snappedLat, snappedLng, request.color(), request.userId());
-
-        String cooldownKey = "user:cooldown:" + request.userId();
         // 테스트를 위해 쿨타임 잠시 해제하고 싶으면 아래 줄 주석 처리
-        Boolean canUpdate = redisTemplate.opsForValue().setIfAbsent(cooldownKey, "locked", 1, TimeUnit.SECONDS);
-
-        if (Boolean.FALSE.equals(canUpdate)) {
-            return "쿨타임 중입니다!";
-        }
+//        String cooldownKey = "user:cooldown:" + request.userId();
+//        Boolean canUpdate = redisTemplate.opsForValue().setIfAbsent(cooldownKey, "locked", 1, TimeUnit.SECONDS);
+//        if (Boolean.FALSE.equals(canUpdate)) {
+//            return "쿨타임 중입니다!";
+//        }
 
         String lockKey = "pixel:lock:" + x + ":" + y;
         RLock lock = redissonClient.getLock(lockKey);

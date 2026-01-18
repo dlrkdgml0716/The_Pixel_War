@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>K-Pixel War (Final Fix)</title>
+    <title>K-Pixel War (Precision Fix)</title>
     <script type="text/javascript" src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=zx8lobio6s"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.5.1/sockjs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
@@ -45,6 +45,8 @@
     const GRID_SIZE = 0.0001;
     const MIN_ZOOM = 16;
     const MAX_ZOOM = 21;
+    // 부동소수점 오차 보정용 (클릭 씹힘 방지)
+    const EPSILON = 0.0000001;
 
     let isAttackMode = false;
     let pixelMap = new Map();
@@ -82,7 +84,7 @@
     }
     window.addEventListener('resize', resizeCanvas);
 
-    // --- 픽셀 그리기 (좌표 보정 로직 적용) ---
+    // --- 픽셀 그리기 ---
     function drawPixels() {
         const projection = map.getProjection();
         const bounds = map.getBounds();
@@ -91,12 +93,10 @@
 
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // 화면 기준점 계산 (북서쪽)
         const nwLat = bounds.getNE().lat();
         const nwLng = bounds.getSW().lng();
         const tlOffset = projection.fromCoordToOffset(new naver.maps.LatLng(nwLat, nwLng));
 
-        // 격자 크기 계산
         const center = map.getCenter();
         const centerOffset = projection.fromCoordToOffset(center);
         const nextGridOffset = projection.fromCoordToOffset(
@@ -106,21 +106,18 @@
         let pixelW = Math.abs(nextGridOffset.x - centerOffset.x);
         let pixelH = Math.abs(nextGridOffset.y - centerOffset.y);
 
+        // 최소 1px 보장
         pixelW = Math.max(pixelW, 1);
         pixelH = Math.max(pixelH, 1);
 
         ctx.beginPath();
         pixelMap.forEach((p) => {
-            // [중요 수정] p.lat, p.lng은 '남서쪽' 좌표입니다. (floor로 저장했으므로)
-            // HTML Canvas는 좌상단(Top-Left)에서 시작해 아래로 그립니다.
-            // 따라서 픽셀의 '북서쪽(Top-Left)' 좌표를 구해야 정확히 마우스 아래에 그려집니다.
-            // 위도(Lat)에 GRID_SIZE를 더해주면 북쪽 경계선이 됩니다.
+            // 남서쪽 좌표 -> 북서쪽(그리기 시작점)으로 변환
             const drawLat = p.lat + GRID_SIZE;
             const drawLng = p.lng;
 
             const latLng = new naver.maps.LatLng(drawLat, drawLng);
 
-            // 화면 범위 체크 (약간의 여유를 둠)
             if (bounds.hasLatLng(new naver.maps.LatLng(p.lat, p.lng))) {
                 const pOffset = projection.fromCoordToOffset(latLng);
 
@@ -128,8 +125,16 @@
                 const y = pOffset.y - tlOffset.y;
 
                 ctx.fillStyle = p.color;
-                // 정수 좌표로 렌더링
-                ctx.fillRect(Math.floor(x), Math.floor(y), Math.ceil(pixelW), Math.ceil(pixelH));
+
+                // [핵심 수정] +1 제거!
+                // 픽셀을 강제로 늘리지 않고 정확한 크기(Math.ceil)만 사용합니다.
+                // 이렇게 해야 눈에 보이는 경계선과 클릭 판정 위치가 정확히 일치합니다.
+                ctx.fillRect(
+                    Math.floor(x),
+                    Math.floor(y),
+                    Math.ceil(pixelW), // +1 제거
+                    Math.ceil(pixelH)  // +1 제거
+                );
             }
         });
     }
@@ -140,22 +145,18 @@
     naver.maps.Event.addListener(map, 'zoom_changed', scheduleDraw);
     naver.maps.Event.addListener(map, 'init', resizeCanvas);
 
-    // --- 데이터 수신 ---
     function updatePixelData(pixel) {
         const key = `${pixel.lat.toFixed(4)},${pixel.lng.toFixed(4)}`;
         pixelMap.set(key, pixel);
         scheduleDraw();
     }
 
-    // 초기 데이터 로드
+    // 초기 데이터 & 소켓
     fetch('/api/pixels')
         .then(res => res.json())
-        .then(data => {
-            if(Array.isArray(data)) data.forEach(p => updatePixelData(p));
-        })
-        .catch(err => console.warn("API 호출 실패:", err));
+        .then(data => { if(Array.isArray(data)) data.forEach(p => updatePixelData(p)); })
+        .catch(err => console.warn("API Error"));
 
-    // 웹소켓
     const socket = new SockJS('/ws-pixel');
     const stompClient = Stomp.over(socket);
     stompClient.connect({}, () => {
@@ -164,24 +165,24 @@
         });
     });
 
-    // --- 클릭 이벤트 (좌표 계산 로직 변경) ---
+    // --- 클릭 이벤트 ---
     naver.maps.Event.addListener(map, 'click', function(e) {
         if (!isAttackMode) return;
 
         const rawLat = e.coord.lat();
         const rawLng = e.coord.lng();
 
-        // [중요 수정] 반올림(round) 대신 내림(floor) 사용
-        // 클릭한 마우스 좌표가 포함된 격자의 "시작점"을 잡습니다.
-        const snapLat = Math.floor(rawLat * 10000) / 10000;
-        const snapLng = Math.floor(rawLng * 10000) / 10000;
+        // [중요] EPSILON + 괄호 적용 (서버와 동일한 로직)
+        const snapLat = Math.floor((rawLat + EPSILON) * 10000) / 10000;
+        const snapLng = Math.floor((rawLng + EPSILON) * 10000) / 10000;
 
-        const newPixel = {
-            lat: snapLat,
-            lng: snapLng,
-            color: document.getElementById('colorPicker').value,
-            userId: document.getElementById('userId').value
-        };
+        const userId = document.getElementById('userId').value;
+        const color = document.getElementById('colorPicker').value;
+        const newPixel = { lat: snapLat, lng: snapLng, color: color, userId: userId };
+
+        // 낙관적 업데이트 & 롤백 처리
+        const key = `${snapLat.toFixed(4)},${snapLng.toFixed(4)}`;
+        const prevPixel = pixelMap.get(key);
 
         updatePixelData(newPixel);
 
@@ -189,13 +190,23 @@
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(newPixel)
+        })
+        .then(res => res.text())
+        .then(result => {
+            if (result !== "SUCCESS" && result !== "성공") {
+                if (prevPixel) updatePixelData(prevPixel);
+                else { pixelMap.delete(key); scheduleDraw(); }
+                console.warn("저장 실패:", result);
+            }
+        })
+        .catch(err => {
+            if (prevPixel) updatePixelData(prevPixel);
+            else { pixelMap.delete(key); scheduleDraw(); }
         });
     });
 
-    // --- UI 핸들러 ---
     const modeBtn = document.getElementById('modeBtn');
     const mapDiv = document.getElementById('map');
-
     modeBtn.addEventListener('click', () => {
         isAttackMode = !isAttackMode;
         if (isAttackMode) {
