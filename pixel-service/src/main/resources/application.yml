@@ -25,3 +25,24 @@ spring:
       auto-offset-reset: earliest
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+
+  security:
+    oauth2:
+      client:
+        registration:
+          kakao:
+            client-id: 944af284cbb6d82f6bf6a95b4100425a
+            client-secret: 98NerSFw7JRGpfGU4VVFfcuukBiqN2AY
+            client-authentication-method: client_secret_post
+            authorization-grant-type: authorization_code
+            redirect-uri: http://localhost:8080/login/oauth2/code/kakao
+            scope:
+              - profile_nickname
+            client-name: Kakao
+
+        provider:
+          kakao:
+            authorization-uri: https://kauth.kakao.com/oauth/authorize
+            token-uri: https://kauth.kakao.com/oauth/token
+            user-info-uri: https://kapi.kakao.com/v2/user/me
+            user-name-attribute: id
