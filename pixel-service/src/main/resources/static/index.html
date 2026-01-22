@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>K-Pixel War (Korea Locked)</title>
+    <title>The Pixel War</title>
     <script type="text/javascript" src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=zx8lobio6s"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.5.1/sockjs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
@@ -10,26 +10,21 @@
         body { margin: 0; padding: 0; overflow: hidden; background-color: #f0f0f0; }
         #game-container { position: relative; width: 100vw; height: 100vh; }
 
-        /* 지도 및 캔버스 */
         #map { width: 100%; height: 100%; z-index: 1; will-change: transform; }
         #pixelCanvas {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             z-index: 10; pointer-events: none;
         }
 
-        /* UI 패널 디자인 */
         .ui-panel {
             position: absolute; top: 20px; right: 20px; z-index: 100;
             background: rgba(255, 255, 255, 0.95); padding: 15px;
             border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.3);
             font-family: 'Noto Sans KR', sans-serif;
             min-width: 200px;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
+            display: flex; flex-direction: column; gap: 10px;
         }
 
-        /* 버튼 스타일 */
         .mode-btn { width: 100%; padding: 10px; cursor: pointer; font-weight: bold; border-radius: 5px; transition: 0.2s; border: none; }
         .mode-move { background: #4CAF50; color: white; }
         .mode-attack { background: #f44336; color: white; }
@@ -38,8 +33,7 @@
             display: block; width: 100%; padding: 10px 0;
             background-color: #FEE500; color: #000000;
             text-align: center; text-decoration: none;
-            font-weight: bold; border-radius: 5px; font-size: 14px;
-            box-sizing: border-box;
+            font-weight: bold; border-radius: 5px; font-size: 14px; box-sizing: border-box;
         }
         .btn-logout {
             display: block; width: 100%; padding: 5px 0;
@@ -48,12 +42,8 @@
             border-radius: 4px; font-size: 12px; margin-top: 5px;
         }
 
-        /* 공격 모드 커서 */
         .attack-cursor { cursor: crosshair !important; }
-
-        /* 로그인/로그아웃 영역 전환용 */
         #login-area, #user-info { display: none; }
-
         .user-greeting { font-size: 14px; text-align: center; margin: 0; }
         .user-nickname { color: #2196F3; font-weight: bold; }
     </style>
@@ -66,14 +56,11 @@
 
     <div class="ui-panel">
         <button id="modeBtn" class="mode-btn mode-move">📍 이동 모드</button>
-
         <hr style="width: 100%; border: 0; border-top: 1px solid #eee;">
-
         <div style="display: flex; justify-content: space-between; align-items: center;">
             <span>색상:</span>
             <input type="color" id="colorPicker" value="#ff0000" style="cursor: pointer;">
         </div>
-
         <hr style="width: 100%; border: 0; border-top: 1px solid #eee;">
 
         <div id="login-area">
@@ -92,35 +79,31 @@
 </div>
 
 <script>
-    // --- 설정 (사용자님 설정값 절대 유지) ---
+    // --- 설정 ---
     const GRID_SIZE = 0.0001;
-    const MIN_ZOOM = 8;   // 요청하신 값 유지
-    const MAX_ZOOM = 17;  // 요청하신 값 유지
+    const MIN_ZOOM = 9;   // 사용자 요청 값 유지
+    const MAX_ZOOM = 17;  // 사용자 요청 값 유지
     const EPSILON = 0.0000001;
 
     const KOREA_BOUNDS = new naver.maps.LatLngBounds(
-        // 좌하단: 제주도 마라도 남쪽 바다 ~ 서해 백령도 근처 (중국 안 보이게 자름)
-        new naver.maps.LatLng(32.80, 122.50),
-
-        // 우상단: 강원도 고성 통일전망대 ~ 독도 동쪽 끝 (북한 깊은 곳 안 보이게 자름)
-        new naver.maps.LatLng(38.90, 132.00)
+        new naver.maps.LatLng(32.80, 124.60), // 남서쪽 (제주도 아래)
+        new naver.maps.LatLng(38.55, 132.00)  // 북동쪽 (고성 통일전망대 위)
     );
+    // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
 
     let isAttackMode = false;
     let pixelMap = new Map();
-
-    // 유저 정보 저장용
     let myNickname = null;
     let isLoggedIn = false;
 
     // --- 지도 초기화 ---
     const map = new naver.maps.Map('map', {
         center: new naver.maps.LatLng(37.3595704, 127.105399),
-        zoom: 18, // 요청하신 값 유지
+        zoom: 18,
         minZoom: MIN_ZOOM,
         maxZoom: MAX_ZOOM,
 
-        // ▼ [추가됨] 이 설정 하나로 지도가 남한 밖으로 안 나갑니다.
+        // 이동 제한 설정
         maxBounds: KOREA_BOUNDS,
 
         draggable: true, scrollWheel: true, disableDoubleClickZoom: true, tileTransition: true
@@ -150,7 +133,7 @@
     }
     window.addEventListener('resize', resizeCanvas);
 
-    // --- 픽셀 그리기 (기존 로직 유지) ---
+    // --- 픽셀 그리기 ---
     function drawPixels() {
         const projection = map.getProjection();
         const bounds = map.getBounds();
@@ -177,17 +160,17 @@
 
         ctx.beginPath();
         pixelMap.forEach((p) => {
-            const drawLat = p.lat + GRID_SIZE;
-            const drawLng = p.lng;
-            const latLng = new naver.maps.LatLng(drawLat, drawLng);
-
+            // 화면 안에 있는 것만 그림
             if (bounds.hasLatLng(new naver.maps.LatLng(p.lat, p.lng))) {
+                const drawLat = p.lat + GRID_SIZE;
+                const drawLng = p.lng;
+                const latLng = new naver.maps.LatLng(drawLat, drawLng);
+
                 const pOffset = projection.fromCoordToOffset(latLng);
                 const x = pOffset.x - tlOffset.x;
                 const y = pOffset.y - tlOffset.y;
 
                 ctx.fillStyle = p.color;
-                // [기존 정밀도 로직 유지]
                 ctx.fillRect(Math.floor(x), Math.floor(y), Math.ceil(pixelW), Math.ceil(pixelH));
             }
         });
@@ -205,7 +188,7 @@
         scheduleDraw();
     }
 
-    // --- 데이터 로드 (API & Socket) ---
+    // --- 데이터 로드 ---
     fetch('/api/pixels')
         .then(res => res.json())
         .then(data => { if(Array.isArray(data)) data.forEach(p => updatePixelData(p)); })
@@ -219,35 +202,26 @@
         });
     });
 
-    // --- [핵심 변경] 클릭 이벤트 (로그인 체크 + 영역 체크) ---
+    // --- 클릭 이벤트 (경계 체크) ---
     naver.maps.Event.addListener(map, 'click', function(e) {
         if (!isAttackMode) return;
-
-        // 1. 로그인 체크
-        if (!isLoggedIn) {
-            alert("픽셀을 찍으려면 로그인이 필요합니다!");
-            return;
-        }
+        if (!isLoggedIn) { alert("픽셀을 찍으려면 로그인이 필요합니다!"); return; }
 
         const rawLat = e.coord.lat();
         const rawLng = e.coord.lng();
 
-        // 2. 정밀도 보정 (기존 로직)
         const snapLat = Math.floor((rawLat + EPSILON) * 10000) / 10000;
         const snapLng = Math.floor((rawLng + EPSILON) * 10000) / 10000;
 
-        // ▼ [추가됨] 픽셀 찍을 때도 남한 밖이면 막음 (안전장치)
+        // [중요] 픽셀을 찍으려는 위치가 남한 경계(38.63도 이하)인지 확인
         if (!KOREA_BOUNDS.hasLatLng(new naver.maps.LatLng(snapLat, snapLng))) {
             alert("대한민국 영토 내에만 픽셀을 찍을 수 있습니다!");
             return;
         }
 
         const color = document.getElementById('colorPicker').value;
-
-        // 3. ID 대신 닉네임 전송
         const newPixel = { lat: snapLat, lng: snapLng, color: color, userId: myNickname };
 
-        // 낙관적 업데이트
         const key = `${snapLat.toFixed(4)},${snapLng.toFixed(4)}`;
         const prevPixel = pixelMap.get(key);
         updatePixelData(newPixel);
@@ -289,27 +263,21 @@
         }
     });
 
-    // --- [신규 기능] 로그인 상태 확인 ---
+    // --- 로그인 확인 ---
     fetch('/api/user/me')
         .then(response => {
             if (response.ok) return response.json();
             throw new Error('로그인 안됨');
         })
         .then(user => {
-            // 로그인 성공 시
             isLoggedIn = true;
-            // 카카오 닉네임 가져오기 (없으면 'User')
             myNickname = user.nickname || "User";
-
-            // UI 변경: 로그인창 숨기고, 유저정보 표시
             document.getElementById('login-area').style.display = 'none';
             document.getElementById('user-info').style.display = 'block';
             document.getElementById('nickname-display').innerText = myNickname;
         })
         .catch(error => {
-            // 로그인 안 된 경우
             isLoggedIn = false;
-            // UI 변경: 로그인창 표시, 유저정보 숨김
             document.getElementById('login-area').style.display = 'block';
             document.getElementById('user-info').style.display = 'none';
         });
