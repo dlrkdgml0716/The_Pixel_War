@@ -25,9 +25,21 @@
             display: flex; flex-direction: column; gap: 10px;
         }
 
-        .mode-btn { width: 100%; padding: 10px; cursor: pointer; font-weight: bold; border-radius: 5px; transition: 0.2s; border: none; }
+        /* 버튼 공통 스타일 */
+        .btn-common {
+            width: 100%; padding: 10px; cursor: pointer;
+            font-weight: bold; border-radius: 5px;
+            transition: 0.2s; border: none; font-size: 14px;
+        }
+
         .mode-move { background: #4CAF50; color: white; }
         .mode-attack { background: #f44336; color: white; }
+
+        /* [추가] 내 위치 이동 버튼 스타일 (파란색 계열) */
+        .btn-location {
+            background-color: #2196F3; color: white;
+        }
+        .btn-location:hover { background-color: #1976D2; }
 
         .btn-kakao {
             display: block; width: 100%; padding: 10px 0;
@@ -55,7 +67,10 @@
     <canvas id="pixelCanvas"></canvas>
 
     <div class="ui-panel">
-        <button id="modeBtn" class="mode-btn mode-move">📍 이동 모드</button>
+        <button id="modeBtn" class="btn-common mode-move">📍 이동 모드</button>
+
+        <button id="myLocBtn" class="btn-common btn-location">🧭 내 위치로</button>
+
         <hr style="width: 100%; border: 0; border-top: 1px solid #eee;">
         <div style="display: flex; justify-content: space-between; align-items: center;">
             <span>색상:</span>
@@ -80,16 +95,15 @@
 
 <script>
     // --- 설정 ---
-    const GRID_SIZE = 0.0001;
-    const MIN_ZOOM = 9;   // 사용자 요청 값 유지
-    const MAX_ZOOM = 17;  // 사용자 요청 값 유지
+    const GRID_SIZE = 0.0003;
+    const MIN_ZOOM = 9;
+    const MAX_ZOOM = 17;
     const EPSILON = 0.0000001;
 
     const KOREA_BOUNDS = new naver.maps.LatLngBounds(
-        new naver.maps.LatLng(32.80, 124.60), // 남서쪽 (제주도 아래)
-        new naver.maps.LatLng(38.55, 132.00)  // 북동쪽 (고성 통일전망대 위)
+        new naver.maps.LatLng(32.80, 124.60),
+        new naver.maps.LatLng(38.55, 132.00)
     );
-    // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
 
     let isAttackMode = false;
     let pixelMap = new Map();
@@ -99,13 +113,10 @@
     // --- 지도 초기화 ---
     const map = new naver.maps.Map('map', {
         center: new naver.maps.LatLng(37.3595704, 127.105399),
-        zoom: 18,
+        zoom: 16,
         minZoom: MIN_ZOOM,
         maxZoom: MAX_ZOOM,
-
-        // 이동 제한 설정
         maxBounds: KOREA_BOUNDS,
-
         draggable: true, scrollWheel: true, disableDoubleClickZoom: true, tileTransition: true
     });
 
@@ -133,7 +144,7 @@
     }
     window.addEventListener('resize', resizeCanvas);
 
-    // --- 픽셀 그리기 ---
+    // --- 픽셀 그리기 (겹침 해결 로직 유지) ---
     function drawPixels() {
         const projection = map.getProjection();
         const bounds = map.getBounds();
@@ -155,24 +166,32 @@
         let pixelW = Math.abs(nextGridOffset.x - centerOffset.x);
         let pixelH = Math.abs(nextGridOffset.y - centerOffset.y);
 
-        pixelW = Math.max(pixelW, 1);
-        pixelH = Math.max(pixelH, 1);
+        pixelW = Math.max(pixelW, 3);
+        pixelH = Math.max(pixelH, 3);
 
         ctx.beginPath();
+
+        const displayMap = new Map();
         pixelMap.forEach((p) => {
-            // 화면 안에 있는 것만 그림
             if (bounds.hasLatLng(new naver.maps.LatLng(p.lat, p.lng))) {
-                const drawLat = p.lat + GRID_SIZE;
-                const drawLng = p.lng;
-                const latLng = new naver.maps.LatLng(drawLat, drawLng);
-
-                const pOffset = projection.fromCoordToOffset(latLng);
-                const x = pOffset.x - tlOffset.x;
-                const y = pOffset.y - tlOffset.y;
-
-                ctx.fillStyle = p.color;
-                ctx.fillRect(Math.floor(x), Math.floor(y), Math.ceil(pixelW), Math.ceil(pixelH));
+                const snapLat = (Math.floor(p.lat / GRID_SIZE) * GRID_SIZE).toFixed(6);
+                const snapLng = (Math.floor(p.lng / GRID_SIZE) * GRID_SIZE).toFixed(6);
+                const displayKey = `${snapLat},${snapLng}`;
+                displayMap.set(displayKey, { ...p, lat: parseFloat(snapLat), lng: parseFloat(snapLng) });
             }
+        });
+
+        displayMap.forEach((p) => {
+            const drawLat = p.lat + GRID_SIZE;
+            const drawLng = p.lng;
+            const latLng = new naver.maps.LatLng(drawLat, drawLng);
+
+            const pOffset = projection.fromCoordToOffset(latLng);
+            const x = pOffset.x - tlOffset.x;
+            const y = pOffset.y - tlOffset.y;
+
+            ctx.fillStyle = p.color;
+            ctx.fillRect(Math.floor(x), Math.floor(y), Math.ceil(pixelW), Math.ceil(pixelH));
         });
     }
 
@@ -202,7 +221,7 @@
         });
     });
 
-    // --- 클릭 이벤트 (경계 체크) ---
+    // --- 클릭 이벤트 ---
     naver.maps.Event.addListener(map, 'click', function(e) {
         if (!isAttackMode) return;
         if (!isLoggedIn) { alert("픽셀을 찍으려면 로그인이 필요합니다!"); return; }
@@ -210,10 +229,9 @@
         const rawLat = e.coord.lat();
         const rawLng = e.coord.lng();
 
-        const snapLat = Math.floor((rawLat + EPSILON) * 10000) / 10000;
-        const snapLng = Math.floor((rawLng + EPSILON) * 10000) / 10000;
+        const snapLat = Math.floor(rawLat / GRID_SIZE) * GRID_SIZE;
+        const snapLng = Math.floor(rawLng / GRID_SIZE) * GRID_SIZE;
 
-        // [중요] 픽셀을 찍으려는 위치가 남한 경계(38.63도 이하)인지 확인
         if (!KOREA_BOUNDS.hasLatLng(new naver.maps.LatLng(snapLat, snapLng))) {
             alert("대한민국 영토 내에만 픽셀을 찍을 수 있습니다!");
             return;
@@ -222,8 +240,6 @@
         const color = document.getElementById('colorPicker').value;
         const newPixel = { lat: snapLat, lng: snapLng, color: color, userId: myNickname };
 
-        const key = `${snapLat.toFixed(4)},${snapLng.toFixed(4)}`;
-        const prevPixel = pixelMap.get(key);
         updatePixelData(newPixel);
 
         fetch('/api/pixels', {
@@ -234,33 +250,65 @@
         .then(res => res.text())
         .then(result => {
             if (result !== "SUCCESS" && result !== "성공") {
-                if (prevPixel) updatePixelData(prevPixel);
-                else { pixelMap.delete(key); scheduleDraw(); }
+                 scheduleDraw();
                 console.warn("저장 실패:", result);
             }
         })
         .catch(err => {
-            if (prevPixel) updatePixelData(prevPixel);
-            else { pixelMap.delete(key); scheduleDraw(); }
+             scheduleDraw();
         });
     });
 
-    // --- 모드 전환 버튼 ---
+    // --- 버튼 이벤트 핸들러 ---
     const modeBtn = document.getElementById('modeBtn');
+    const myLocBtn = document.getElementById('myLocBtn'); // 내 위치 버튼
     const mapDiv = document.getElementById('map');
+
+    // 1. 모드 변경
     modeBtn.addEventListener('click', () => {
         isAttackMode = !isAttackMode;
         if (isAttackMode) {
             modeBtn.innerText = "⚔️ 공격 모드";
-            modeBtn.className = "mode-btn mode-attack";
+            modeBtn.className = "btn-common mode-attack";
             map.setOptions({ draggable: false, scrollWheel: false, disableDoubleClickZoom: true });
             mapDiv.classList.add('attack-cursor');
         } else {
             modeBtn.innerText = "📍 이동 모드";
-            modeBtn.className = "mode-btn mode-move";
+            modeBtn.className = "btn-common mode-move";
             map.setOptions({ draggable: true, scrollWheel: true, disableDoubleClickZoom: true });
             mapDiv.classList.remove('attack-cursor');
         }
+    });
+
+    // 2. [추가됨] 내 위치로 이동 버튼 클릭
+    myLocBtn.addEventListener('click', () => {
+        if (!navigator.geolocation) {
+            alert("이 브라우저는 위치 정보를 지원하지 않습니다.");
+            return;
+        }
+
+        // 버튼 누를 때만 권한 요청 및 이동
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                const lat = position.coords.latitude;
+                const lng = position.coords.longitude;
+                const userLocation = new naver.maps.LatLng(lat, lng);
+
+                if (KOREA_BOUNDS.hasLatLng(userLocation)) {
+                    map.setCenter(userLocation);
+                    map.setZoom(16); // 이동하면서 줌도 적당히 당겨줌
+                } else {
+                    alert("현재 위치가 대한민국 서비스 지역 밖입니다.");
+                }
+            },
+            (error) => {
+                if(error.code === 1) { // 권한 거부
+                    alert("위치 정보 제공을 허용해주세요.");
+                } else {
+                    alert("위치 정보를 가져올 수 없습니다.");
+                }
+            }
+        );
     });
 
     // --- 로그인 확인 ---
