@@ -11,9 +11,17 @@
         #game-container { position: relative; width: 100vw; height: 100vh; }
 
         #map { width: 100%; height: 100%; z-index: 1; will-change: transform; }
+
+        /* [기존] 실제 픽셀들이 그려지는 캔버스 (z-index: 10) */
         #pixelCanvas {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             z-index: 10; pointer-events: none;
+        }
+
+        /* [추가] 커서 미리보기용 캔버스 (z-index: 11) -> 픽셀 위에 떠있어야 함 */
+        #previewCanvas {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 11; pointer-events: none;
         }
 
         .ui-panel {
@@ -25,7 +33,6 @@
             display: flex; flex-direction: column; gap: 10px;
         }
 
-        /* 버튼 공통 스타일 */
         .btn-common {
             width: 100%; padding: 10px; cursor: pointer;
             font-weight: bold; border-radius: 5px;
@@ -34,11 +41,7 @@
 
         .mode-move { background: #4CAF50; color: white; }
         .mode-attack { background: #f44336; color: white; }
-
-        /* [추가] 내 위치 이동 버튼 스타일 (파란색 계열) */
-        .btn-location {
-            background-color: #2196F3; color: white;
-        }
+        .btn-location { background-color: #2196F3; color: white; }
         .btn-location:hover { background-color: #1976D2; }
 
         .btn-kakao {
@@ -54,7 +57,10 @@
             border-radius: 4px; font-size: 12px; margin-top: 5px;
         }
 
+        /* 공격 모드일 때 커서 숨김 (캔버스에 직접 그릴 거라서) -> 선택 사항이지만 끄는 게 더 자연스러움 */
+        /* .attack-cursor { cursor: none !important; } */
         .attack-cursor { cursor: crosshair !important; }
+
         #login-area, #user-info { display: none; }
         .user-greeting { font-size: 14px; text-align: center; margin: 0; }
         .user-nickname { color: #2196F3; font-weight: bold; }
@@ -65,10 +71,10 @@
 <div id="game-container">
     <div id="map"></div>
     <canvas id="pixelCanvas"></canvas>
+    <canvas id="previewCanvas"></canvas>
 
     <div class="ui-panel">
         <button id="modeBtn" class="btn-common mode-move">📍 이동 모드</button>
-
         <button id="myLocBtn" class="btn-common btn-location">🧭 내 위치로</button>
 
         <hr style="width: 100%; border: 0; border-top: 1px solid #eee;">
@@ -120,9 +126,14 @@
         draggable: true, scrollWheel: true, disableDoubleClickZoom: true, tileTransition: true
     });
 
-    // --- 캔버스 설정 ---
+    // --- 캔버스 설정 (기존: 픽셀용) ---
     const canvas = document.getElementById('pixelCanvas');
     const ctx = canvas.getContext('2d');
+
+    // --- [추가] 캔버스 설정 (신규: 미리보기용) ---
+    const previewCanvas = document.getElementById('previewCanvas');
+    const previewCtx = previewCanvas.getContext('2d');
+
     let isDrawing = false, needsRedraw = false;
 
     function scheduleDraw() {
@@ -138,13 +149,20 @@
     function resizeCanvas() {
         const size = map.getSize();
         if (size.width === 0 || size.height === 0) return;
+
+        // 메인 캔버스 리사이징
         canvas.width = size.width;
         canvas.height = size.height;
+
+        // [추가] 미리보기 캔버스도 똑같이 리사이징
+        previewCanvas.width = size.width;
+        previewCanvas.height = size.height;
+
         scheduleDraw();
     }
     window.addEventListener('resize', resizeCanvas);
 
-    // --- 픽셀 그리기 (겹침 해결 로직 유지) ---
+    // --- 메인 픽셀 그리기 ---
     function drawPixels() {
         const projection = map.getProjection();
         const bounds = map.getBounds();
@@ -170,7 +188,6 @@
         pixelH = Math.max(pixelH, 3);
 
         ctx.beginPath();
-
         const displayMap = new Map();
         pixelMap.forEach((p) => {
             if (bounds.hasLatLng(new naver.maps.LatLng(p.lat, p.lng))) {
@@ -185,7 +202,6 @@
             const drawLat = p.lat + GRID_SIZE;
             const drawLng = p.lng;
             const latLng = new naver.maps.LatLng(drawLat, drawLng);
-
             const pOffset = projection.fromCoordToOffset(latLng);
             const x = pOffset.x - tlOffset.x;
             const y = pOffset.y - tlOffset.y;
@@ -194,6 +210,82 @@
             ctx.fillRect(Math.floor(x), Math.floor(y), Math.ceil(pixelW), Math.ceil(pixelH));
         });
     }
+
+    // --- [신규 기능] 마우스 움직임 감지 및 미리보기 그리기 ---
+    naver.maps.Event.addListener(map, 'mousemove', function(e) {
+        // 공격 모드가 아니면 미리보기 캔버스를 깨끗이 지우고 끝냄
+        if (!isAttackMode) {
+            previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+            return;
+        }
+
+        const projection = map.getProjection();
+        const bounds = map.getBounds();
+        if (!projection || !bounds) return;
+
+        // 1. 현재 마우스 위치 좌표 가져오기
+        const rawLat = e.coord.lat();
+        const rawLng = e.coord.lng();
+
+        // 2. 격자 스냅 계산 (클릭 로직과 동일하게)
+        const snapLat = Math.floor(rawLat / GRID_SIZE) * GRID_SIZE;
+        const snapLng = Math.floor(rawLng / GRID_SIZE) * GRID_SIZE;
+
+        // 3. 화면 좌표로 변환 준비
+        // (주의: drawPixels와 동일한 로직으로 그려야 위치가 딱 맞음)
+        const nwLat = bounds.getNE().lat();
+        const nwLng = bounds.getSW().lng();
+        const tlOffset = projection.fromCoordToOffset(new naver.maps.LatLng(nwLat, nwLng));
+
+        // 픽셀 크기 계산
+        const center = map.getCenter();
+        const centerOffset = projection.fromCoordToOffset(center);
+        const nextGridOffset = projection.fromCoordToOffset(
+            new naver.maps.LatLng(center.lat() + GRID_SIZE, center.lng() + GRID_SIZE)
+        );
+        let pixelW = Math.abs(nextGridOffset.x - centerOffset.x);
+        let pixelH = Math.abs(nextGridOffset.y - centerOffset.y);
+        pixelW = Math.max(pixelW, 3);
+        pixelH = Math.max(pixelH, 3);
+
+        // 4. 미리보기 캔버스 초기화 (이전 잔상 지우기)
+        previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+
+        // 5. 그리기 (화면 안에 있을 때만)
+        // 실제 그리는 위치는 (snapLat + GRID_SIZE, snapLng) 기준이어야 drawPixels와 일치함
+        const drawLat = snapLat + GRID_SIZE;
+        const drawLng = snapLng;
+        const latLng = new naver.maps.LatLng(drawLat, drawLng);
+
+        // 대한민국 영토 밖이면 그리지 않음 (빨간색 경고 느낌을 줘도 좋지만 일단 안 그림)
+        if (!KOREA_BOUNDS.hasLatLng(new naver.maps.LatLng(snapLat, snapLng))) {
+            return;
+        }
+
+        const pOffset = projection.fromCoordToOffset(latLng);
+        const x = pOffset.x - tlOffset.x;
+        const y = pOffset.y - tlOffset.y;
+
+        // 6. 반투명 사각형 그리기
+        const selectedColor = document.getElementById('colorPicker').value;
+
+        // 색상에 투명도 적용 (HEX -> RGBA 변환)
+        const r = parseInt(selectedColor.substring(1, 3), 16);
+        const g = parseInt(selectedColor.substring(3, 5), 16);
+        const b = parseInt(selectedColor.substring(5, 7), 16);
+
+        previewCtx.fillStyle = `rgba(${r}, ${g}, ${b}, 0.5)`; // 투명도 50%
+        previewCtx.strokeStyle = "white"; // 테두리는 흰색으로 해서 더 잘 보이게
+        previewCtx.lineWidth = 1;
+
+        const px = Math.floor(x);
+        const py = Math.floor(y);
+        const pw = Math.ceil(pixelW);
+        const ph = Math.ceil(pixelH);
+
+        previewCtx.fillRect(px, py, pw, ph);
+        previewCtx.strokeRect(px, py, pw, ph);
+    });
 
     // --- 이벤트 리스너 ---
     naver.maps.Event.addListener(map, 'idle', scheduleDraw);
@@ -259,12 +351,10 @@
         });
     });
 
-    // --- 버튼 이벤트 핸들러 ---
     const modeBtn = document.getElementById('modeBtn');
-    const myLocBtn = document.getElementById('myLocBtn'); // 내 위치 버튼
+    const myLocBtn = document.getElementById('myLocBtn');
     const mapDiv = document.getElementById('map');
 
-    // 1. 모드 변경
     modeBtn.addEventListener('click', () => {
         isAttackMode = !isAttackMode;
         if (isAttackMode) {
@@ -277,17 +367,16 @@
             modeBtn.className = "btn-common mode-move";
             map.setOptions({ draggable: true, scrollWheel: true, disableDoubleClickZoom: true });
             mapDiv.classList.remove('attack-cursor');
+            // 공격 모드 해제 시 미리보기 캔버스 즉시 지우기
+            previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
         }
     });
 
-    // 2. [추가됨] 내 위치로 이동 버튼 클릭
     myLocBtn.addEventListener('click', () => {
         if (!navigator.geolocation) {
             alert("이 브라우저는 위치 정보를 지원하지 않습니다.");
             return;
         }
-
-        // 버튼 누를 때만 권한 요청 및 이동
         navigator.geolocation.getCurrentPosition(
             (position) => {
                 const lat = position.coords.latitude;
@@ -296,22 +385,18 @@
 
                 if (KOREA_BOUNDS.hasLatLng(userLocation)) {
                     map.setCenter(userLocation);
-                    map.setZoom(16); // 이동하면서 줌도 적당히 당겨줌
+                    map.setZoom(16);
                 } else {
                     alert("현재 위치가 대한민국 서비스 지역 밖입니다.");
                 }
             },
             (error) => {
-                if(error.code === 1) { // 권한 거부
-                    alert("위치 정보 제공을 허용해주세요.");
-                } else {
-                    alert("위치 정보를 가져올 수 없습니다.");
-                }
+                if(error.code === 1) alert("위치 정보 제공을 허용해주세요.");
+                else alert("위치 정보를 가져올 수 없습니다.");
             }
         );
     });
 
-    // --- 로그인 확인 ---
     fetch('/api/user/me')
         .then(response => {
             if (response.ok) return response.json();
