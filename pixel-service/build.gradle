@@ -43,6 +43,8 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-security'
     // OAuth2 클라이언트 라이브러리 (소셜 로그인용)
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
+    runtimeOnly 'com.h2database:h2'
+    testImplementation 'org.springframework.security:spring-security-test'
 }
 
 test {

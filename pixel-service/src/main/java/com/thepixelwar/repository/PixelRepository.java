@@ -38,4 +38,13 @@ public class PixelRepository {
                 .setParameter("y", y)
                 .getResultStream().findFirst().orElse(null);
     }
+    public List<PixelEntity> findByArea(int minX, int maxX, int minY, int maxY) {
+        return em.createQuery(
+                        "select p from PixelEntity p where p.x >= :minX and p.x <= :maxX and p.y >= :minY and p.y <= :maxY", PixelEntity.class)
+                .setParameter("minX", minX)
+                .setParameter("maxX", maxX)
+                .setParameter("minY", minY)
+                .setParameter("maxY", maxY)
+                .getResultList();
+    }
 }

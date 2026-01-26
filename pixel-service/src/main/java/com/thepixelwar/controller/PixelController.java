@@ -24,7 +24,18 @@ public class PixelController {
     }
 
     @GetMapping
-    public List<PixelRequest> getAllPixels() {
-        return pixelService.getAllPixels();
+    public List<PixelRequest> getPixels(
+            @RequestParam(required = false) Double minLat,
+            @RequestParam(required = false) Double maxLat,
+            @RequestParam(required = false) Double minLng,
+            @RequestParam(required = false) Double maxLng
+    ) {
+        // 1. 범위 정보가 없으면? -> 그냥 다 줍니다 (기존 방식 호환)
+        if (minLat == null || maxLat == null || minLng == null || maxLng == null) {
+            return pixelService.getAllPixels();
+        }
+
+        // 2. 범위 정보가 있으면? -> 해당 부분만 잘라서 줍니다 (최적화!)
+        return pixelService.getPixelsInBounds(minLat, maxLat, minLng, maxLng);
     }
 }

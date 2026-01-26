@@ -90,4 +90,22 @@ public class PixelService {
                         entity.getUserId()))
                 .toList();
     }
+
+    @Transactional(readOnly = true)
+    public List<PixelRequest> getPixelsInBounds(double minLat, double maxLat, double minLng, double maxLng) {
+        // 1. 실수 좌표 -> 정수 인덱스 변환
+        int minX = (int) Math.floor((minLat + EPSILON) * GRID_DIVISOR);
+        int maxX = (int) Math.floor((maxLat + EPSILON) * GRID_DIVISOR);
+        int minY = (int) Math.floor((minLng + EPSILON) * GRID_DIVISOR);
+        int maxY = (int) Math.floor((maxLng + EPSILON) * GRID_DIVISOR);
+
+        // 2. DB에서 해당 범위만 조회 (findAll 대신 방금 만든 findByArea 사용)
+        return pixelRepository.findByArea(minX, maxX, minY, maxY).stream()
+                .map(entity -> new PixelRequest(
+                        (double) entity.getX() / GRID_DIVISOR,
+                        (double) entity.getY() / GRID_DIVISOR,
+                        entity.getColor(),
+                        entity.getUserId()))
+                .toList();
+    }
 }
