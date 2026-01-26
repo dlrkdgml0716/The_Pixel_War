@@ -14,6 +14,7 @@ import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -29,37 +30,51 @@ public class PixelService {
     private final ObjectMapper objectMapper;
     private final PixelRepository pixelRepository;
 
-    private static final double GRID_DIVISOR = 10000.0;
+    // [설정] HTML과 동일한 격자 크기
+    private static final double GRID_SIZE = 0.0003;
+    private static final long COOLDOWN_SECONDS = 5;
     private static final double EPSILON = 0.0000001;
 
+    /**
+     * 1. 픽셀 찍기 (쓰기)
+     */
     public String updatePixel(PixelRequest request) {
-        // [수정] round(반올림) -> floor(내림) 변경
-        // 클릭한 위치가 포함된 격자의 "남서쪽(Left-Bottom)" 모서리 좌표를 인덱스로 잡습니다.
-        int x = (int) Math.floor((request.lat() + EPSILON) * GRID_DIVISOR);
-        int y = (int) Math.floor((request.lng() + EPSILON) * GRID_DIVISOR);
+        String userId = request.userId();
 
-        double snappedLat = (double) x / GRID_DIVISOR;
-        double snappedLng = (double) y / GRID_DIVISOR;
+        // 쿨타임 체크
+        String cooldownKey = "cooldown:" + userId;
+        Long remainingTime = redisTemplate.getExpire(cooldownKey, TimeUnit.SECONDS);
+
+        if (remainingTime != null && remainingTime > 0) {
+            return "쿨타임이 " + remainingTime + "초 남았습니다!";
+        }
+
+        // 좌표 계산
+        int x = (int) Math.floor((request.lat() + EPSILON) / GRID_SIZE);
+        int y = (int) Math.floor((request.lng() + EPSILON) / GRID_SIZE);
+
+        double snappedLat = x * GRID_SIZE;
+        double snappedLng = y * GRID_SIZE;
 
         PixelRequest snappedRequest = new PixelRequest(snappedLat, snappedLng, request.color(), request.userId());
-        // 테스트를 위해 쿨타임 잠시 해제하고 싶으면 아래 줄 주석 처리
-//        String cooldownKey = "user:cooldown:" + request.userId();
-//        Boolean canUpdate = redisTemplate.opsForValue().setIfAbsent(cooldownKey, "locked", 1, TimeUnit.SECONDS);
-//        if (Boolean.FALSE.equals(canUpdate)) {
-//            return "쿨타임 중입니다!";
-//        }
 
+        // 락 획득
         String lockKey = "pixel:lock:" + x + ":" + y;
         RLock lock = redissonClient.getLock(lockKey);
 
         try {
             if (lock.tryLock(5, 2, TimeUnit.SECONDS)) {
                 try {
+                    // Redis 저장
                     String pixelKey = "pixel:" + x + ":" + y;
                     redisTemplate.opsForValue().set(pixelKey, snappedRequest.color());
 
+                    // Kafka 전송
                     String message = objectMapper.writeValueAsString(snappedRequest);
                     kafkaTemplate.send("pixel-updates", message);
+
+                    // 쿨타임 설정
+                    redisTemplate.opsForValue().set(cooldownKey, "active", Duration.ofSeconds(COOLDOWN_SECONDS));
 
                     return "성공";
                 } catch (JsonProcessingException e) {
@@ -67,43 +82,57 @@ public class PixelService {
                 } finally {
                     if (lock.isHeldByCurrentThread()) lock.unlock();
                 }
+            } else {
+                return "다른 사람이 작업 중입니다.";
             }
         } catch (InterruptedException e) {
             log.error("락 에러", e);
+            Thread.currentThread().interrupt();
         }
         return "실패";
     }
 
+    /**
+     * 2. 영역 기반 조회 (최적화된 읽기)
+     * 화면에 보이는 부분만 가져옵니다.
+     */
     @Transactional(readOnly = true)
-    public String getPixelColor(int x, int y) {
-        PixelEntity pixel = pixelRepository.findByCoords(x, y);
-        return pixel != null ? pixel.getColor() : "#FFFFFF";
-    }
+    public List<PixelRequest> getPixelsInBounds(double minLat, double maxLat, double minLng, double maxLng) {
+        int minX = (int) Math.floor((minLat + EPSILON) / GRID_SIZE);
+        int maxX = (int) Math.ceil((maxLat + EPSILON) / GRID_SIZE);
+        int minY = (int) Math.floor((minLng + EPSILON) / GRID_SIZE);
+        int maxY = (int) Math.ceil((maxLng + EPSILON) / GRID_SIZE);
 
-    @Transactional(readOnly = true)
-    public List<PixelRequest> getAllPixels() {
-        return pixelRepository.findAll().stream()
+        return pixelRepository.findByArea(minX, maxX, minY, maxY).stream()
                 .map(entity -> new PixelRequest(
-                        (double) entity.getX() / GRID_DIVISOR,
-                        (double) entity.getY() / GRID_DIVISOR,
+                        entity.getX() * GRID_SIZE,
+                        entity.getY() * GRID_SIZE,
                         entity.getColor(),
                         entity.getUserId()))
                 .toList();
     }
 
+    /**
+     * [복구됨] 3. 단일 픽셀 색상 조회
+     * Controller의 getPixel 메서드에서 사용합니다.
+     */
     @Transactional(readOnly = true)
-    public List<PixelRequest> getPixelsInBounds(double minLat, double maxLat, double minLng, double maxLng) {
-        // 1. 실수 좌표 -> 정수 인덱스 변환
-        int minX = (int) Math.floor((minLat + EPSILON) * GRID_DIVISOR);
-        int maxX = (int) Math.floor((maxLat + EPSILON) * GRID_DIVISOR);
-        int minY = (int) Math.floor((minLng + EPSILON) * GRID_DIVISOR);
-        int maxY = (int) Math.floor((maxLng + EPSILON) * GRID_DIVISOR);
+    public String getPixelColor(int x, int y) {
+        PixelEntity pixel = pixelRepository.findByCoords(x, y);
+        // 픽셀이 없으면 기본값(흰색) 또는 null 반환
+        return pixel != null ? pixel.getColor() : "#FFFFFF";
+    }
 
-        // 2. DB에서 해당 범위만 조회 (findAll 대신 방금 만든 findByArea 사용)
-        return pixelRepository.findByArea(minX, maxX, minY, maxY).stream()
+    /**
+     * [복구됨] 4. 전체 픽셀 조회
+     * Controller의 getPixels 메서드(범위 없을 때)에서 사용합니다.
+     */
+    @Transactional(readOnly = true)
+    public List<PixelRequest> getAllPixels() {
+        return pixelRepository.findAll().stream()
                 .map(entity -> new PixelRequest(
-                        (double) entity.getX() / GRID_DIVISOR,
-                        (double) entity.getY() / GRID_DIVISOR,
+                        entity.getX() * GRID_SIZE,
+                        entity.getY() * GRID_SIZE,
                         entity.getColor(),
                         entity.getUserId()))
                 .toList();

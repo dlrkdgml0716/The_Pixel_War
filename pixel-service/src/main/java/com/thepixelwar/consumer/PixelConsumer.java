@@ -20,7 +20,8 @@ public class PixelConsumer {
     private final PixelRepository pixelRepository;
     private final SimpMessagingTemplate messagingTemplate;
 
-    private static final double GRID_DIVISOR = 10000.0;
+    // [설정] PixelService와 반드시 일치해야 함
+    private static final double GRID_SIZE = 0.0003;
     private static final double EPSILON = 0.0000001;
 
     @KafkaListener(topics = "pixel-updates", groupId = "pixel-war-group")
@@ -29,9 +30,9 @@ public class PixelConsumer {
         try {
             PixelRequest request = objectMapper.readValue(message, PixelRequest.class);
 
-            // [수정] floor(내림) 사용
-            int x = (int) Math.floor((request.lat() + EPSILON) * GRID_DIVISOR);
-            int y = (int) Math.floor((request.lng() + EPSILON) * GRID_DIVISOR);
+            // [수정 1] 곱하기(*)가 아니라 나누기(/)여야 인덱스가 나옵니다.
+            int x = (int) Math.floor((request.lat() + EPSILON) / GRID_SIZE);
+            int y = (int) Math.floor((request.lng() + EPSILON) / GRID_SIZE);
 
             PixelEntity existingPixel = pixelRepository.findByCoords(x, y);
 
@@ -42,11 +43,13 @@ public class PixelConsumer {
                 pixelRepository.save(new PixelEntity(x, y, request.color(), request.userId()));
             }
 
-            double snappedLat = (double) x / GRID_DIVISOR;
-            double snappedLng = (double) y / GRID_DIVISOR;
+            // [수정 2] 나누기(/)가 아니라 곱하기(*)여야 좌표가 복원됩니다.
+            double snappedLat = x * GRID_SIZE;
+            double snappedLng = y * GRID_SIZE;
 
             PixelRequest snappedRequest = new PixelRequest(snappedLat, snappedLng, request.color(), request.userId());
 
+            // 클라이언트들에게 "DB 저장됐으니 화면 업데이트 해!" 하고 전송
             messagingTemplate.convertAndSend("/topic/pixel", snappedRequest);
 
         } catch (Exception e) {

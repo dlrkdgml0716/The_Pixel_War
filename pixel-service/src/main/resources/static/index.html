@@ -7,61 +7,155 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.5.1/sockjs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
     <style>
-        body { margin: 0; padding: 0; overflow: hidden; background-color: #f0f0f0; }
-        #game-container { position: relative; width: 100vw; height: 100vh; }
-
-        #map { width: 100%; height: 100%; z-index: 1; will-change: transform; }
-
-        /* [기존] 실제 픽셀들이 그려지는 캔버스 (z-index: 10) */
-        #pixelCanvas {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            z-index: 10; pointer-events: none;
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #f0f0f0;
         }
 
-        /* [추가] 커서 미리보기용 캔버스 (z-index: 11) */
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            will-change: transform;
+        }
+
+        #pixelCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            pointer-events: none;
+        }
+
         #previewCanvas {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            z-index: 11; pointer-events: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 11;
+            pointer-events: none;
         }
 
         .ui-panel {
-            position: absolute; top: 20px; right: 20px; z-index: 100;
-            background: rgba(255, 255, 255, 0.95); padding: 15px;
-            border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 100;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
             font-family: 'Noto Sans KR', sans-serif;
             min-width: 200px;
-            display: flex; flex-direction: column; gap: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
         }
 
         .btn-common {
-            width: 100%; padding: 10px; cursor: pointer;
-            font-weight: bold; border-radius: 5px;
-            transition: 0.2s; border: none; font-size: 14px;
+            width: 100%;
+            padding: 10px;
+            cursor: pointer;
+            font-weight: bold;
+            border-radius: 5px;
+            transition: 0.2s;
+            border: none;
+            font-size: 14px;
         }
 
-        .mode-move { background: #4CAF50; color: white; }
-        .mode-attack { background: #f44336; color: white; }
-        .btn-location { background-color: #2196F3; color: white; }
-        .btn-location:hover { background-color: #1976D2; }
+        .mode-move {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .mode-attack {
+            background: #f44336;
+            color: white;
+        }
+
+        .btn-location {
+            background-color: #2196F3;
+            color: white;
+        }
+
+        .btn-location:hover {
+            background-color: #1976D2;
+        }
 
         .btn-kakao {
-            display: block; width: 100%; padding: 10px 0;
-            background-color: #FEE500; color: #000000;
-            text-align: center; text-decoration: none;
-            font-weight: bold; border-radius: 5px; font-size: 14px; box-sizing: border-box;
+            display: block;
+            width: 100%;
+            padding: 10px 0;
+            background-color: #FEE500;
+            color: #000000;
+            text-align: center;
+            text-decoration: none;
+            font-weight: bold;
+            border-radius: 5px;
+            font-size: 14px;
+            box-sizing: border-box;
         }
+
         .btn-logout {
-            display: block; width: 100%; padding: 5px 0;
-            background-color: #999; color: white;
-            text-align: center; text-decoration: none;
-            border-radius: 4px; font-size: 12px; margin-top: 5px;
+            display: block;
+            width: 100%;
+            padding: 5px 0;
+            background-color: #999;
+            color: white;
+            text-align: center;
+            text-decoration: none;
+            border-radius: 4px;
+            font-size: 12px;
+            margin-top: 5px;
         }
 
-        .attack-cursor { cursor: crosshair !important; }
+        .cooldown-box {
+            display: none;
+            background-color: #333;
+            color: #fff;
+            padding: 10px;
+            border-radius: 5px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 14px;
+        }
 
-        #login-area, #user-info { display: none; }
-        .user-greeting { font-size: 14px; text-align: center; margin: 0; }
-        .user-nickname { color: #2196F3; font-weight: bold; }
+        .cooldown-timer {
+            color: #FFeb3b;
+            font-size: 18px;
+            margin-left: 5px;
+        }
+
+        .attack-cursor {
+            cursor: crosshair !important;
+        }
+
+        #login-area,
+        #user-info {
+            display: none;
+        }
+
+        .user-greeting {
+            font-size: 14px;
+            text-align: center;
+            margin: 0;
+        }
+
+        .user-nickname {
+            color: #2196F3;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
@@ -74,6 +168,10 @@
     <div class="ui-panel">
         <button id="modeBtn" class="btn-common mode-move">📍 이동 모드</button>
         <button id="myLocBtn" class="btn-common btn-location">🧭 내 위치로</button>
+
+        <div id="cooldownDisplay" class="cooldown-box">
+            ⏳ 대기: <span id="timerText" class="cooldown-timer">0</span>초
+        </div>
 
         <hr style="width: 100%; border: 0; border-top: 1px solid #eee;">
         <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -100,9 +198,10 @@
 <script>
     // --- 설정 ---
     const GRID_SIZE = 0.0003;
+    const COOLDOWN_TIME = 5;
     const MIN_ZOOM = 9;
     const MAX_ZOOM = 17;
-    const EPSILON = 0.0000001;
+    const EPSILON = 0.0000001; // [중요] 부동소수점 오차 보정값
 
     const KOREA_BOUNDS = new naver.maps.LatLngBounds(
         new naver.maps.LatLng(32.80, 124.60),
@@ -113,6 +212,8 @@
     let pixelMap = new Map();
     let myNickname = null;
     let isLoggedIn = false;
+    let isCooldown = false;
+    let cooldownInterval = null;
 
     // --- 지도 초기화 ---
     const map = new naver.maps.Map('map', {
@@ -121,7 +222,10 @@
         minZoom: MIN_ZOOM,
         maxZoom: MAX_ZOOM,
         maxBounds: KOREA_BOUNDS,
-        draggable: true, scrollWheel: true, disableDoubleClickZoom: true, tileTransition: true
+        draggable: true,
+        scrollWheel: true,
+        disableDoubleClickZoom: true,
+        tileTransition: true
     });
 
     // --- 캔버스 설정 ---
@@ -130,165 +234,140 @@
     const previewCanvas = document.getElementById('previewCanvas');
     const previewCtx = previewCanvas.getContext('2d');
 
-    let isDrawing = false, needsRedraw = false;
+    let isDrawing = false,
+        needsRedraw = false;
 
     function scheduleDraw() {
         needsRedraw = true;
-        if (!isDrawing) { isDrawing = true; requestAnimationFrame(drawLoop); }
+        if (!isDrawing) {
+            isDrawing = true;
+            requestAnimationFrame(drawLoop);
+        }
     }
 
     function drawLoop() {
-        if (needsRedraw) { drawPixels(); needsRedraw = false; requestAnimationFrame(drawLoop); }
-        else { isDrawing = false; }
+        if (needsRedraw) {
+            drawPixels();
+            needsRedraw = false;
+            requestAnimationFrame(drawLoop);
+        } else {
+            isDrawing = false;
+        }
     }
 
     function resizeCanvas() {
         const size = map.getSize();
         if (size.width === 0 || size.height === 0) return;
-
         canvas.width = size.width;
         canvas.height = size.height;
         previewCanvas.width = size.width;
         previewCanvas.height = size.height;
-
         scheduleDraw();
     }
     window.addEventListener('resize', resizeCanvas);
 
-    // --- 메인 픽셀 그리기 ---
+    // --- 메인 픽셀 그리기 (오차 수정됨) ---
     function drawPixels() {
         const projection = map.getProjection();
         const bounds = map.getBounds();
-
         if (!bounds || !projection) return;
 
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-
         const nwLat = bounds.getNE().lat();
         const nwLng = bounds.getSW().lng();
         const tlOffset = projection.fromCoordToOffset(new naver.maps.LatLng(nwLat, nwLng));
-
         const center = map.getCenter();
         const centerOffset = projection.fromCoordToOffset(center);
-        const nextGridOffset = projection.fromCoordToOffset(
-            new naver.maps.LatLng(center.lat() + GRID_SIZE, center.lng() + GRID_SIZE)
-        );
+        const nextGridOffset = projection.fromCoordToOffset(new naver.maps.LatLng(center.lat() + GRID_SIZE, center.lng() + GRID_SIZE));
 
-        let pixelW = Math.abs(nextGridOffset.x - centerOffset.x);
-        let pixelH = Math.abs(nextGridOffset.y - centerOffset.y);
-
-        pixelW = Math.max(pixelW, 3);
-        pixelH = Math.max(pixelH, 3);
+        let pixelW = Math.max(Math.abs(nextGridOffset.x - centerOffset.x), 3);
+        let pixelH = Math.max(Math.abs(nextGridOffset.y - centerOffset.y), 3);
 
         ctx.beginPath();
         const displayMap = new Map();
+
         pixelMap.forEach((p) => {
-            // [최적화] 화면 안에 있는 것만 리스트업
             if (bounds.hasLatLng(new naver.maps.LatLng(p.lat, p.lng))) {
-                const snapLat = (Math.floor(p.lat / GRID_SIZE) * GRID_SIZE).toFixed(6);
-                const snapLng = (Math.floor(p.lng / GRID_SIZE) * GRID_SIZE).toFixed(6);
-                const displayKey = `${snapLat},${snapLng}`;
-                displayMap.set(displayKey, { ...p, lat: parseFloat(snapLat), lng: parseFloat(snapLng) });
+                // [핵심 수정] 좌표 계산 시 EPSILON 더하기
+                const snapLat = (Math.floor((p.lat + EPSILON) / GRID_SIZE) * GRID_SIZE).toFixed(6);
+                const snapLng = (Math.floor((p.lng + EPSILON) / GRID_SIZE) * GRID_SIZE).toFixed(6);
+                displayMap.set(`${snapLat},${snapLng}`, {
+                    ...p,
+                    lat: parseFloat(snapLat),
+                    lng: parseFloat(snapLng)
+                });
             }
         });
 
         displayMap.forEach((p) => {
-            const drawLat = p.lat + GRID_SIZE;
-            const drawLng = p.lng;
-            const latLng = new naver.maps.LatLng(drawLat, drawLng);
+            const latLng = new naver.maps.LatLng(p.lat + GRID_SIZE, p.lng);
             const pOffset = projection.fromCoordToOffset(latLng);
-            const x = pOffset.x - tlOffset.x;
-            const y = pOffset.y - tlOffset.y;
-
             ctx.fillStyle = p.color;
-            ctx.fillRect(Math.floor(x), Math.floor(y), Math.ceil(pixelW), Math.ceil(pixelH));
+            ctx.fillRect(Math.floor(pOffset.x - tlOffset.x), Math.floor(pOffset.y - tlOffset.y), Math.ceil(pixelW), Math.ceil(pixelH));
         });
     }
 
-    // --- 마우스 움직임 (미리보기) ---
+    // --- 마우스 미리보기 (오차 수정됨) ---
     naver.maps.Event.addListener(map, 'mousemove', function(e) {
         if (!isAttackMode) {
             previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
             return;
         }
-
         const projection = map.getProjection();
         const bounds = map.getBounds();
         if (!projection || !bounds) return;
 
-        const rawLat = e.coord.lat();
-        const rawLng = e.coord.lng();
+        // [핵심 수정] 마우스 좌표 계산 시에도 EPSILON 더하기
+        const snapLat = Math.floor((e.coord.lat() + EPSILON) / GRID_SIZE) * GRID_SIZE;
+        const snapLng = Math.floor((e.coord.lng() + EPSILON) / GRID_SIZE) * GRID_SIZE;
 
-        const snapLat = Math.floor(rawLat / GRID_SIZE) * GRID_SIZE;
-        const snapLng = Math.floor(rawLng / GRID_SIZE) * GRID_SIZE;
+        if (!KOREA_BOUNDS.hasLatLng(new naver.maps.LatLng(snapLat, snapLng))) return;
 
         const nwLat = bounds.getNE().lat();
         const nwLng = bounds.getSW().lng();
         const tlOffset = projection.fromCoordToOffset(new naver.maps.LatLng(nwLat, nwLng));
-
         const center = map.getCenter();
         const centerOffset = projection.fromCoordToOffset(center);
-        const nextGridOffset = projection.fromCoordToOffset(
-            new naver.maps.LatLng(center.lat() + GRID_SIZE, center.lng() + GRID_SIZE)
-        );
-        let pixelW = Math.abs(nextGridOffset.x - centerOffset.x);
-        let pixelH = Math.abs(nextGridOffset.y - centerOffset.y);
-        pixelW = Math.max(pixelW, 3);
-        pixelH = Math.max(pixelH, 3);
+        const nextGridOffset = projection.fromCoordToOffset(new naver.maps.LatLng(center.lat() + GRID_SIZE, center.lng() + GRID_SIZE));
 
         previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
-
-        const drawLat = snapLat + GRID_SIZE;
-        const drawLng = snapLng;
-        const latLng = new naver.maps.LatLng(drawLat, drawLng);
-
-        if (!KOREA_BOUNDS.hasLatLng(new naver.maps.LatLng(snapLat, snapLng))) {
-            return;
-        }
-
+        const latLng = new naver.maps.LatLng(snapLat + GRID_SIZE, snapLng);
         const pOffset = projection.fromCoordToOffset(latLng);
-        const x = pOffset.x - tlOffset.x;
-        const y = pOffset.y - tlOffset.y;
 
         const selectedColor = document.getElementById('colorPicker').value;
         const r = parseInt(selectedColor.substring(1, 3), 16);
         const g = parseInt(selectedColor.substring(3, 5), 16);
         const b = parseInt(selectedColor.substring(5, 7), 16);
-
         previewCtx.fillStyle = `rgba(${r}, ${g}, ${b}, 0.5)`;
         previewCtx.strokeStyle = "white";
         previewCtx.lineWidth = 1;
 
-        previewCtx.fillRect(Math.floor(x), Math.floor(y), Math.ceil(pixelW), Math.ceil(pixelH));
-        previewCtx.strokeRect(Math.floor(x), Math.floor(y), Math.ceil(pixelW), Math.ceil(pixelH));
+        const px = Math.floor(pOffset.x - tlOffset.x);
+        const py = Math.floor(pOffset.y - tlOffset.y);
+        const pw = Math.ceil(Math.max(Math.abs(nextGridOffset.x - centerOffset.x), 3));
+        const ph = Math.ceil(Math.max(Math.abs(nextGridOffset.y - centerOffset.y), 3));
+        previewCtx.fillRect(px, py, pw, ph);
+        previewCtx.strokeRect(px, py, pw, ph);
     });
 
-    // --- [수정됨] 핵심: 영역 기반 데이터 로딩 함수 ---
+    // --- 데이터 로드 ---
     function fetchVisiblePixels() {
         const bounds = map.getBounds();
         if (!bounds) return;
-
-        const sw = bounds.getSW(); // 남서쪽
-        const ne = bounds.getNE(); // 북동쪽
-
-        // API 호출: 현재 화면의 좌표 범위를 서버로 보냄
+        const sw = bounds.getSW();
+        const ne = bounds.getNE();
         fetch(`/api/pixels?minLat=${sw.lat()}&maxLat=${ne.lat()}&minLng=${sw.lng()}&maxLng=${ne.lng()}`)
             .then(res => res.json())
             .then(data => {
                 if (Array.isArray(data)) {
-                    // 받아온 데이터만 업데이트
                     data.forEach(p => updatePixelData(p));
                     scheduleDraw();
                 }
             })
             .catch(err => console.warn("Load Error", err));
     }
-
-    // [중요] 지도가 멈출 때(idle), 처음 로딩될 때(init) 데이터 요청
     naver.maps.Event.addListener(map, 'idle', fetchVisiblePixels);
     naver.maps.Event.addListener(map, 'init', fetchVisiblePixels);
-
-    // 화면 이동/줌 변경 시 그리기 예약 (데이터 요청은 idle에서 함)
     naver.maps.Event.addListener(map, 'center_changed', scheduleDraw);
     naver.maps.Event.addListener(map, 'zoom_changed', scheduleDraw);
 
@@ -298,25 +377,56 @@
         scheduleDraw();
     }
 
-    // --- 웹소켓 (실시간) ---
     const socket = new SockJS('/ws-pixel');
     const stompClient = Stomp.over(socket);
     stompClient.connect({}, () => {
-        stompClient.subscribe('/topic/pixel', (msg) => {
-            updatePixelData(JSON.parse(msg.body));
-        });
+        stompClient.subscribe('/topic/pixel', (msg) => updatePixelData(JSON.parse(msg.body)));
     });
 
-    // --- 클릭 이벤트 (픽셀 찍기) ---
+    // --- 쿨타임 시작 함수 ---
+    function startCooldown(seconds) {
+        isCooldown = true;
+        const display = document.getElementById('cooldownDisplay');
+        const timerText = document.getElementById('timerText');
+
+        display.style.display = 'block';
+
+        let remaining = seconds;
+        timerText.innerText = remaining;
+
+        if (cooldownInterval) clearInterval(cooldownInterval);
+
+        cooldownInterval = setInterval(() => {
+            remaining--;
+            timerText.innerText = remaining;
+
+            if (remaining <= 0) {
+                clearInterval(cooldownInterval);
+                isCooldown = false;
+                display.style.display = 'none';
+            }
+        }, 1000);
+    }
+
+    // --- 클릭 이벤트 (오차 수정됨) ---
     naver.maps.Event.addListener(map, 'click', function(e) {
         if (!isAttackMode) return;
-        if (!isLoggedIn) { alert("픽셀을 찍으려면 로그인이 필요합니다!"); return; }
+        if (!isLoggedIn) {
+            alert("로그인이 필요합니다!");
+            return;
+        }
+
+        if (isCooldown) {
+            alert("아직 쿨타임입니다! 조금만 기다려주세요.");
+            return;
+        }
 
         const rawLat = e.coord.lat();
         const rawLng = e.coord.lng();
 
-        const snapLat = Math.floor(rawLat / GRID_SIZE) * GRID_SIZE;
-        const snapLng = Math.floor(rawLng / GRID_SIZE) * GRID_SIZE;
+        // [핵심 수정] 클릭 좌표 계산 시에도 EPSILON 더하기
+        const snapLat = Math.floor((rawLat + EPSILON) / GRID_SIZE) * GRID_SIZE;
+        const snapLng = Math.floor((rawLng + EPSILON) / GRID_SIZE) * GRID_SIZE;
 
         if (!KOREA_BOUNDS.hasLatLng(new naver.maps.LatLng(snapLat, snapLng))) {
             alert("대한민국 영토 내에만 픽셀을 찍을 수 있습니다!");
@@ -324,28 +434,54 @@
         }
 
         const color = document.getElementById('colorPicker').value;
-        const newPixel = { lat: snapLat, lng: snapLng, color: color, userId: myNickname };
+        const newPixel = {
+            lat: snapLat,
+            lng: snapLng,
+            color: color,
+            userId: myNickname
+        };
 
         updatePixelData(newPixel);
 
         fetch('/api/pixels', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(newPixel)
-        })
-        .then(res => res.text())
-        .then(result => {
-            if (result !== "SUCCESS" && result !== "성공") {
-                 scheduleDraw();
-                console.warn("저장 실패:", result);
-            }
-        })
-        .catch(err => {
-             scheduleDraw();
-        });
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(newPixel)
+            })
+            .then(res => res.text())
+            .then(result => {
+                if (result === "SUCCESS" || result === "성공") {
+                    startCooldown(COOLDOWN_TIME);
+                }
+                else if (result.includes("쿨타임")) {
+                    const numbers = result.match(/\d+/);
+                    const remainingSeconds = numbers ? parseInt(numbers[0]) : 60;
+
+                    startCooldown(remainingSeconds);
+
+                    const mapKey = `${snapLat.toFixed(4)},${snapLng.toFixed(4)}`;
+                    pixelMap.delete(mapKey);
+                    scheduleDraw();
+
+                    alert(result);
+                }
+                else {
+                    alert(result);
+                    const mapKey = `${snapLat.toFixed(4)},${snapLng.toFixed(4)}`;
+                    pixelMap.delete(mapKey);
+                    scheduleDraw();
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                const mapKey = `${snapLat.toFixed(4)},${snapLng.toFixed(4)}`;
+                pixelMap.delete(mapKey);
+                scheduleDraw();
+            });
     });
 
-    // --- UI 이벤트 핸들러 ---
     const modeBtn = document.getElementById('modeBtn');
     const myLocBtn = document.getElementById('myLocBtn');
     const mapDiv = document.getElementById('map');
@@ -355,12 +491,20 @@
         if (isAttackMode) {
             modeBtn.innerText = "⚔️ 공격 모드";
             modeBtn.className = "btn-common mode-attack";
-            map.setOptions({ draggable: false, scrollWheel: false, disableDoubleClickZoom: true });
+            map.setOptions({
+                draggable: false,
+                scrollWheel: false,
+                disableDoubleClickZoom: true
+            });
             mapDiv.classList.add('attack-cursor');
         } else {
             modeBtn.innerText = "📍 이동 모드";
             modeBtn.className = "btn-common mode-move";
-            map.setOptions({ draggable: true, scrollWheel: true, disableDoubleClickZoom: true });
+            map.setOptions({
+                draggable: true,
+                scrollWheel: true,
+                disableDoubleClickZoom: true
+            });
             mapDiv.classList.remove('attack-cursor');
             previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
         }
@@ -368,47 +512,32 @@
 
     myLocBtn.addEventListener('click', () => {
         if (!navigator.geolocation) {
-            alert("이 브라우저는 위치 정보를 지원하지 않습니다.");
+            alert("위치 정보 미지원");
             return;
         }
         navigator.geolocation.getCurrentPosition(
-            (position) => {
-                const lat = position.coords.latitude;
-                const lng = position.coords.longitude;
-                const userLocation = new naver.maps.LatLng(lat, lng);
-
-                if (KOREA_BOUNDS.hasLatLng(userLocation)) {
-                    map.setCenter(userLocation);
+            (pos) => {
+                const loc = new naver.maps.LatLng(pos.coords.latitude, pos.coords.longitude);
+                if (KOREA_BOUNDS.hasLatLng(loc)) {
+                    map.setCenter(loc);
                     map.setZoom(16);
-                } else {
-                    alert("현재 위치가 대한민국 서비스 지역 밖입니다.");
-                }
+                } else alert("서비스 지역 밖입니다.");
             },
-            (error) => {
-                if(error.code === 1) alert("위치 정보 제공을 허용해주세요.");
-                else alert("위치 정보를 가져올 수 없습니다.");
-            }
+            () => alert("위치 정보를 가져올 수 없습니다.")
         );
     });
 
-    // --- 로그인 체크 ---
-    fetch('/api/user/me')
-        .then(response => {
-            if (response.ok) return response.json();
-            throw new Error('로그인 안됨');
-        })
-        .then(user => {
-            isLoggedIn = true;
-            myNickname = user.nickname || "User";
-            document.getElementById('login-area').style.display = 'none';
-            document.getElementById('user-info').style.display = 'block';
-            document.getElementById('nickname-display').innerText = myNickname;
-        })
-        .catch(error => {
-            isLoggedIn = false;
-            document.getElementById('login-area').style.display = 'block';
-            document.getElementById('user-info').style.display = 'none';
-        });
+    fetch('/api/user/me').then(res => res.ok ? res.json() : Promise.reject()).then(user => {
+        isLoggedIn = true;
+        myNickname = user.nickname || "User";
+        document.getElementById('login-area').style.display = 'none';
+        document.getElementById('user-info').style.display = 'block';
+        document.getElementById('nickname-display').innerText = myNickname;
+    }).catch(() => {
+        isLoggedIn = false;
+        document.getElementById('login-area').style.display = 'block';
+        document.getElementById('user-info').style.display = 'none';
+    });
 
     setTimeout(resizeCanvas, 500);
 </script>
