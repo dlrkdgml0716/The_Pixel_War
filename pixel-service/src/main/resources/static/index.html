@@ -10,175 +10,60 @@
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap" rel="stylesheet">
 
     <style>
-        :root {
-            /* Ultra Transparent Liquid Glass */
-            --glass-bg: rgba(20, 20, 20, 0.3);
-            --glass-border: rgba(255, 255, 255, 0.1);
-            --glass-highlight: rgba(255, 255, 255, 0.15);
-            --primary-color: #FF4500;
-            --accent-color: #00A3FF;
-            --text-color: #ffffff;
-        }
-
+        /* (스타일은 기존과 동일하므로 유지) */
+        :root { --glass-bg: rgba(20, 20, 20, 0.3); --glass-border: rgba(255, 255, 255, 0.1); --glass-highlight: rgba(255, 255, 255, 0.15); --primary-color: #FF4500; --accent-color: #00A3FF; --text-color: #ffffff; --gold: #FFD700; --silver: #C0C0C0; --bronze: #CD7F32; }
         body { margin: 0; padding: 0; overflow: hidden; background-color: #1a1a1a; font-family: 'Noto Sans KR', sans-serif; }
-
         #game-container { position: relative; width: 100vw; height: 100vh; }
-
-        /* Main Map */
         #map { width: 100%; height: 100%; z-index: 1; outline: none; }
-
-        /* Canvas Layers */
         #pixelCanvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; pointer-events: none; }
         #previewCanvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 11; pointer-events: none; }
-
-        /* --- UI Components --- */
-        .glass-panel {
-            background: var(--glass-bg);
-            backdrop-filter: blur(25px) saturate(180%);
-            -webkit-backdrop-filter: blur(25px) saturate(180%);
-            border: 0.5px solid var(--glass-border);
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3), inset 0 0 0 0.5px var(--glass-highlight);
-            color: var(--text-color);
-            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-        }
-
-        /* 1. Top Left: User Info */
-        #ui-top-left {
-            position: absolute; top: 20px; left: 20px; z-index: 100;
-            display: flex; flex-direction: column; gap: 8px;
-            padding: 12px 16px; border-radius: 20px;
-            min-width: 140px;
-        }
+        .glass-panel { background: var(--glass-bg); backdrop-filter: blur(25px) saturate(180%); -webkit-backdrop-filter: blur(25px) saturate(180%); border: 0.5px solid var(--glass-border); box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3), inset 0 0 0 0.5px var(--glass-highlight); color: var(--text-color); transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); }
+        #ui-top-left { position: absolute; top: 20px; left: 20px; z-index: 100; display: flex; flex-direction: column; gap: 8px; padding: 12px 16px; border-radius: 20px; min-width: 140px; }
         .user-badge { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14px; }
         .user-badge span { color: var(--accent-color); text-shadow: 0 0 10px rgba(0, 163, 255, 0.6); }
-        .btn-small {
-            background: rgba(255,255,255,0.08); border: none; color: #ddd;
-            padding: 6px 10px; border-radius: 12px; cursor: pointer; font-size: 11px;
-            text-decoration: none; text-align: center; transition: background 0.2s;
-        }
+        .btn-small { background: rgba(255,255,255,0.08); border: none; color: #ddd; padding: 6px 10px; border-radius: 12px; cursor: pointer; font-size: 11px; text-decoration: none; text-align: center; transition: background 0.2s; }
         .btn-small:hover { background: rgba(255,255,255,0.2); color: #fff; }
-        .btn-kakao {
-            background-color: #FEE500; color: #000; font-weight: bold;
-            padding: 8px; border-radius: 12px; text-decoration: none; text-align: center; font-size: 13px;
-            opacity: 0.9;
-        }
-
-        /* 2. Top Center: Cooldown HUD */
-        #ui-cooldown-overlay {
-            position: absolute; top: 30px; left: 50%; transform: translateX(-50%); z-index: 100;
-            display: none; padding: 8px 24px; border-radius: 50px;
-            background: rgba(0, 0, 0, 0.4); backdrop-filter: blur(15px);
-            border: 1px solid rgba(255, 69, 0, 0.4);
-            box-shadow: 0 0 25px rgba(255, 69, 0, 0.2);
-            align-items: center; gap: 10px;
-        }
+        .btn-kakao { background-color: #FEE500; color: #000; font-weight: bold; padding: 8px; border-radius: 12px; text-decoration: none; text-align: center; font-size: 13px; opacity: 0.9; }
+        #ui-top-right { position: absolute; top: 20px; right: 20px; z-index: 100; display: flex; flex-direction: column; gap: 5px; padding: 15px; border-radius: 20px; min-width: 180px; }
+        .rank-title { font-size: 12px; font-weight: 900; color: #aaa; text-transform: uppercase; margin-bottom: 5px; letter-spacing: 1px; }
+        .rank-item { display: flex; justify-content: space-between; align-items: center; font-size: 13px; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .rank-item:last-child { border-bottom: none; }
+        .rank-num { font-weight: bold; width: 20px; text-align: center; margin-right: 5px; }
+        .rank-1 { color: var(--gold); text-shadow: 0 0 10px rgba(255, 215, 0, 0.5); }
+        .rank-2 { color: var(--silver); }
+        .rank-3 { color: var(--bronze); }
+        .rank-name { flex-grow: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100px; }
+        .rank-score { font-weight: bold; color: var(--accent-color); }
+        #ui-cooldown-overlay { position: absolute; top: 30px; left: 50%; transform: translateX(-50%); z-index: 100; display: none; padding: 8px 24px; border-radius: 50px; background: rgba(0, 0, 0, 0.4); backdrop-filter: blur(15px); border: 1px solid rgba(255, 69, 0, 0.4); box-shadow: 0 0 25px rgba(255, 69, 0, 0.2); align-items: center; gap: 10px; }
         .timer-text { font-size: 18px; font-weight: 900; color: #FFeb3b; }
         .timer-label { font-size: 11px; color: #ccc; text-transform: uppercase; letter-spacing: 1px; }
-
-        /* 3. Bottom Center: Main Dock */
-        #ui-bottom-bar {
-            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 100;
-            display: flex; align-items: center; justify-content: space-between; gap: 12px;
-            padding: 8px 12px; border-radius: 100px;
-            width: auto; min-width: 400px; /* 버튼 추가로 넓이 증가 */
-        }
+        #ui-bottom-bar { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 100; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 12px; border-radius: 100px; width: auto; min-width: 400px; }
         .divider { width: 1px; height: 24px; background: rgba(255,255,255,0.15); margin: 0 4px; }
-
-        /* Color Picker */
-        .color-container {
-            position: relative; width: 42px; height: 42px;
-            border-radius: 50%; overflow: hidden;
-            border: 1.5px solid rgba(255,255,255,0.4);
-            box-shadow: 0 0 15px rgba(255,255,255,0.1);
-            transition: transform 0.2s; cursor: pointer;
-        }
+        .color-container { position: relative; width: 42px; height: 42px; border-radius: 50%; overflow: hidden; border: 1.5px solid rgba(255,255,255,0.4); box-shadow: 0 0 15px rgba(255,255,255,0.1); transition: transform 0.2s; cursor: pointer; }
         .color-container:hover { transform: scale(1.1); border-color: #fff; }
-        #colorPicker {
-            position: absolute; top: -50%; left: -50%; width: 200%; height: 200%;
-            border: none; padding: 0; margin: 0; cursor: pointer;
-        }
-
-        /* Main Mode Button */
-        .btn-main-action {
-            flex-grow: 2; height: 48px; border: none; outline: none; border-radius: 30px;
-            font-weight: 800; font-size: 15px; color: white; cursor: pointer;
-            display: flex; align-items: center; justify-content: center; gap: 8px;
-            transition: all 0.3s; text-shadow: 0 1px 2px rgba(0,0,0,0.2);
-        }
-        .mode-move {
-            background: linear-gradient(135deg, rgba(76, 175, 80, 0.6), rgba(46, 125, 50, 0.7));
-            box-shadow: 0 4px 15px rgba(76, 175, 80, 0.2); border: 1px solid rgba(76, 175, 80, 0.3);
-        }
-        .mode-attack {
-            background: linear-gradient(135deg, rgba(255, 69, 0, 0.6), rgba(213, 0, 0, 0.7));
-            box-shadow: 0 4px 20px rgba(255, 69, 0, 0.3); border: 1px solid rgba(255, 69, 0, 0.3);
-            animation: pulse-red 2s infinite;
-        }
+        #colorPicker { position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; border: none; padding: 0; margin: 0; cursor: pointer; }
+        .btn-main-action { flex-grow: 2; height: 48px; border: none; outline: none; border-radius: 30px; font-weight: 800; font-size: 15px; color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.3s; text-shadow: 0 1px 2px rgba(0,0,0,0.2); }
+        .mode-move { background: linear-gradient(135deg, rgba(76, 175, 80, 0.6), rgba(46, 125, 50, 0.7)); box-shadow: 0 4px 15px rgba(76, 175, 80, 0.2); border: 1px solid rgba(76, 175, 80, 0.3); }
+        .mode-attack { background: linear-gradient(135deg, rgba(255, 69, 0, 0.6), rgba(213, 0, 0, 0.7)); box-shadow: 0 4px 20px rgba(255, 69, 0, 0.3); border: 1px solid rgba(255, 69, 0, 0.3); animation: pulse-red 2s infinite; }
         .btn-main-action:active { transform: scale(0.96); }
-
-        /* Text Button for "My Location" */
-        #myLocBtn {
-            flex-grow: 1; height: 48px; padding: 0 16px;
-            border: none; outline: none; border-radius: 30px;
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            color: #eee; font-weight: 700; font-size: 13px;
-            cursor: pointer; transition: all 0.2s; white-space: nowrap;
-            display: flex; align-items: center; justify-content: center;
-        }
+        #myLocBtn { flex-grow: 1; height: 48px; padding: 0 16px; border: none; outline: none; border-radius: 30px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.15); color: #eee; font-weight: 700; font-size: 13px; cursor: pointer; transition: all 0.2s; white-space: nowrap; display: flex; align-items: center; justify-content: center; }
         #myLocBtn:hover { background: rgba(255, 255, 255, 0.15); color: #fff; }
         #myLocBtn:active { transform: scale(0.96); }
-
-        /* [NEW] Camera Lock Button */
-        #cameraLockBtn {
-            width: 42px; height: 42px; border-radius: 50%;
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            color: #eee; font-size: 18px;
-            display: flex; align-items: center; justify-content: center;
-            cursor: pointer; transition: all 0.2s;
-        }
+        #cameraLockBtn { width: 42px; height: 42px; border-radius: 50%; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.15); color: #eee; font-size: 18px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; }
         #cameraLockBtn:hover { background: rgba(255, 255, 255, 0.15); transform: rotate(-10deg); }
-        #cameraLockBtn.active-lock {
-            background: rgba(0, 163, 255, 0.2); border-color: rgba(0, 163, 255, 0.5); color: #00A3FF;
-        }
-
-        /* Minimap (Zoom Fixed) */
-        #minimap-container {
-            position: absolute; bottom: 20px; right: 20px; z-index: 100;
-            width: 180px; height: 180px;
-            border-radius: 4px; overflow: hidden;
-            border: 2px solid rgba(200, 200, 200, 0.3);
-            box-shadow: 0 0 20px rgba(0, 0, 0, 0.6);
-            background: #000;
-        }
-
+        #cameraLockBtn.active-lock { background: rgba(0, 163, 255, 0.2); border-color: rgba(0, 163, 255, 0.5); color: #00A3FF; }
+        #minimap-container { position: absolute; bottom: 20px; right: 20px; z-index: 100; width: 180px; height: 180px; border-radius: 4px; overflow: hidden; border: 2px solid rgba(200, 200, 200, 0.3); box-shadow: 0 0 20px rgba(0, 0, 0, 0.6); background: #000; }
         #mini-map-view { width: 100%; height: 100%; pointer-events: none; }
-
-        /* Camera Box */
-        #minimap-camera-box {
-            position: absolute; top: 50%; left: 50%;
-            transform: translate(-50%, -50%);
-            width: 50px; height: 30px;
-            border: 2px solid #fff;
-            box-shadow: 0 0 0 200px rgba(0, 0, 0, 0.5);
-            z-index: 101; pointer-events: none;
-        }
-
-        @keyframes pulse-red {
-            0% { box-shadow: 0 0 0 0 rgba(255, 69, 0, 0.4); }
-            70% { box-shadow: 0 0 0 10px rgba(255, 69, 0, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(255, 69, 0, 0); }
-        }
-
+        #minimap-camera-box { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 50px; height: 30px; border: 2px solid #fff; box-shadow: 0 0 0 200px rgba(0, 0, 0, 0.5); z-index: 101; pointer-events: none; }
+        @keyframes pulse-red { 0% { box-shadow: 0 0 0 0 rgba(255, 69, 0, 0.4); } 70% { box-shadow: 0 0 0 10px rgba(255, 69, 0, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 69, 0, 0); } }
         .hidden { display: none !important; }
         .attack-cursor { cursor: crosshair !important; }
-
         @media (max-width: 600px) {
             #ui-bottom-bar { width: 90%; min-width: unset; bottom: 20px; padding: 6px 10px; }
             .btn-main-action { font-size: 13px; height: 44px; }
             #myLocBtn { font-size: 12px; padding: 0 10px; }
             #minimap-container { width: 120px; height: 120px; bottom: 100px; right: 10px; opacity: 0.8; }
+            #ui-top-right { top: 70px; right: 10px; scale: 0.8; transform-origin: top right; }
         }
     </style>
 </head>
@@ -195,10 +80,15 @@
             <a href="/oauth2/authorization/kakao" class="btn-kakao">카카오 로그인</a>
         </div>
         <div id="user-info" class="hidden">
-            <div class="user-badge">
-                👋 <span id="nickname-display">User</span>
-            </div>
+            <div class="user-badge">👋 <span id="nickname-display">User</span></div>
             <a href="/logout" class="btn-small" style="margin-top: 5px; display:block;">로그아웃</a>
+        </div>
+    </div>
+
+    <div id="ui-top-right" class="glass-panel">
+        <div class="rank-title">🏆 Top Conquerors</div>
+        <div id="rank-list">
+            <div style="text-align: center; font-size: 12px; color: #666;">Loading...</div>
         </div>
     </div>
 
@@ -209,33 +99,21 @@
     </div>
 
     <div id="ui-bottom-bar" class="glass-panel">
-        <div class="color-container" title="색상 변경">
-            <input type="color" id="colorPicker" value="#FF4500">
-        </div>
+        <div class="color-container" title="색상 변경"><input type="color" id="colorPicker" value="#FF4500"></div>
+        <div class="divider"></div>
+        <button id="modeBtn" class="btn-main-action mode-move">📍 이동 모드</button>
         <div class="divider"></div>
 
-        <button id="modeBtn" class="btn-main-action mode-move">
-            📍 이동 모드
-        </button>
+        <button id="cameraLockBtn" class="active-lock" title="화면 고정/해제">🔒</button>
 
         <div class="divider"></div>
-
-        <button id="cameraLockBtn" title="화면 고정/해제">
-            🔓
-        </button>
-
-        <div class="divider"></div>
-
-        <button id="myLocBtn">
-            내 위치
-        </button>
+        <button id="myLocBtn">내 위치</button>
     </div>
 
     <div id="minimap-container">
         <div id="minimap-camera-box"></div>
         <div id="mini-map-view"></div>
     </div>
-
 </div>
 
 <script>
@@ -245,8 +123,6 @@
     const MIN_ZOOM = 9;
     const MAX_ZOOM = 17;
     const EPSILON = 0.0000001;
-
-    // 엣지 스크롤 설정
     const EDGE_THRESHOLD = 50;
     const SCROLL_SPEED = 15;
 
@@ -262,96 +138,97 @@
     let isCooldown = false;
     let cooldownInterval = null;
 
-    // [NEW] 화면 고정 상태 변수 (기본값: 고정 해제 = 엣지 스크롤 ON)
-    let isEdgeScrollEnabled = true;
+    // [수정] 기본값: false (엣지 스크롤 OFF = 화면 고정 상태)
+    let isEdgeScrollEnabled = false;
 
-    // --- 지도 초기화 (메인) ---
+    // --- 지도 초기화 ---
     const map = new naver.maps.Map('map', {
         center: new naver.maps.LatLng(37.3595704, 127.105399),
-        zoom: 16,
-        minZoom: MIN_ZOOM,
-        maxZoom: MAX_ZOOM,
-        maxBounds: KOREA_BOUNDS,
-        draggable: false, // 엣지 스크롤이 기본이므로 드래그 꺼둠
-        scrollWheel: true,
-        disableDoubleClickZoom: true,
-        tileTransition: true,
+        zoom: 16, minZoom: MIN_ZOOM, maxZoom: MAX_ZOOM, maxBounds: KOREA_BOUNDS,
+
+        // [수정] 기본값: draggable: true (화면 고정 상태이므로 드래그 가능)
+        draggable: true,
+
+        scrollWheel: true, disableDoubleClickZoom: true, tileTransition: true,
         logoControl: false, mapDataControl: false, scaleControl: false
     });
 
-    // --- 미니맵 초기화 (줌 고정) ---
     const minimap = new naver.maps.Map('mini-map-view', {
-        center: map.getCenter(),
-        zoom: MIN_ZOOM,
-        minZoom: MIN_ZOOM,
-        maxZoom: MIN_ZOOM,
-        disableInteraction: true,
-        logoControl: false, mapDataControl: false, scaleControl: false,
-        zoomControl: false, mapTypeControl: false
+        center: map.getCenter(), zoom: MIN_ZOOM, minZoom: MIN_ZOOM, maxZoom: MIN_ZOOM,
+        disableInteraction: true, logoControl: false, mapDataControl: false, scaleControl: false, zoomControl: false, mapTypeControl: false
     });
 
-    naver.maps.Event.addListener(map, 'center_changed', function(center) {
-        minimap.setCenter(center);
-    });
+    naver.maps.Event.addListener(map, 'center_changed', function(center) { minimap.setCenter(center); });
 
-    // --- [NEW] 화면 고정/해제 로직 ---
+    // --- 랭킹 로직 ---
+    function fetchRanks() {
+        fetch('/api/ranks')
+            .then(res => res.json())
+            .then(data => {
+                const list = document.getElementById('rank-list');
+                list.innerHTML = '';
+                if (data.length === 0) {
+                    list.innerHTML = '<div style="text-align:center; font-size:12px; color:#666;">No Data</div>';
+                    return;
+                }
+                data.forEach(r => {
+                    const rankClass = r.rank <= 3 ? `rank-${r.rank}` : '';
+                    const html = `
+                        <div class="rank-item">
+                            <span class="rank-num ${rankClass}">${r.rank}</span>
+                            <span class="rank-name">${r.nickname}</span>
+                            <span class="rank-score">${r.score}</span>
+                        </div>
+                    `;
+                    list.innerHTML += html;
+                });
+            })
+            .catch(console.error);
+    }
+    setInterval(fetchRanks, 3000);
+    fetchRanks();
+
+    // --- 화면 고정 로직 ---
     const cameraLockBtn = document.getElementById('cameraLockBtn');
-
     cameraLockBtn.addEventListener('click', () => {
         isEdgeScrollEnabled = !isEdgeScrollEnabled;
-
         if (isEdgeScrollEnabled) {
-            // 🔓 고정 해제 (엣지 스크롤 모드)
-            map.setOptions({ draggable: false }); // 드래그 끄기
+            // 🔓 고정 해제 (엣지 스크롤 ON, 드래그 OFF)
+            map.setOptions({ draggable: false });
             cameraLockBtn.innerText = "🔓";
             cameraLockBtn.classList.remove('active-lock');
         } else {
-            // 🔒 화면 고정 (드래그 모드)
-            map.setOptions({ draggable: true }); // 드래그 켜기
+            // 🔒 화면 고정 (엣지 스크롤 OFF, 드래그 ON)
+            map.setOptions({ draggable: true });
             cameraLockBtn.innerText = "🔒";
             cameraLockBtn.classList.add('active-lock');
         }
     });
 
-    // --- 엣지 스크롤 로직 ---
-    let scrollX = 0;
-    let scrollY = 0;
-    let isScrolling = false;
-
+    // --- 엣지 스크롤 ---
+    let scrollX = 0, scrollY = 0, isScrolling = false;
     document.addEventListener('mousemove', (e) => {
-        // [CHECK] 고정 상태면 엣지 스크롤 안함
+        // [중요] 엣지 스크롤이 비활성화(화면 고정) 상태면 실행 안함
         if (!isEdgeScrollEnabled) return;
 
-        const w = window.innerWidth;
-        const h = window.innerHeight;
-        const x = e.clientX;
-        const y = e.clientY;
-
-        scrollX = 0;
-        scrollY = 0;
-
+        const w = window.innerWidth, h = window.innerHeight;
+        const x = e.clientX, y = e.clientY;
+        scrollX = 0; scrollY = 0;
         if (x < EDGE_THRESHOLD) scrollX = -SCROLL_SPEED;
         if (x > w - EDGE_THRESHOLD) scrollX = SCROLL_SPEED;
         if (y < EDGE_THRESHOLD) scrollY = -SCROLL_SPEED;
         if (y > h - EDGE_THRESHOLD) scrollY = SCROLL_SPEED;
 
-        if (scrollX !== 0 || scrollY !== 0) {
-            if (!isScrolling) {
-                isScrolling = true;
-                performEdgeScroll();
-            }
-        } else {
-            isScrolling = false;
-        }
+        if (scrollX !== 0 || scrollY !== 0) { if (!isScrolling) { isScrolling = true; performEdgeScroll(); } }
+        else { isScrolling = false; }
     });
-
     function performEdgeScroll() {
         if (!isScrolling || !isEdgeScrollEnabled) return;
         map.panBy(new naver.maps.Point(scrollX, scrollY));
         requestAnimationFrame(performEdgeScroll);
     }
 
-    // --- 캔버스 설정 ---
+    // --- 캔버스 & 픽셀 로직 ---
     const canvas = document.getElementById('pixelCanvas');
     const ctx = canvas.getContext('2d');
     const previewCanvas = document.getElementById('previewCanvas');
@@ -370,79 +247,57 @@
     }
     window.addEventListener('resize', resizeCanvas);
 
-    // --- 픽셀 그리기 ---
     function drawPixels() {
-        const projection = map.getProjection();
-        const bounds = map.getBounds();
+        const projection = map.getProjection(), bounds = map.getBounds();
         if (!bounds || !projection) return;
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-
         const center = map.getCenter();
         const centerOffset = projection.fromCoordToOffset(center);
         const nextGridOffset = projection.fromCoordToOffset(new naver.maps.LatLng(center.lat() + GRID_SIZE, center.lng() + GRID_SIZE));
         let pixelW = Math.max(Math.abs(nextGridOffset.x - centerOffset.x), 3);
         let pixelH = Math.max(Math.abs(nextGridOffset.y - centerOffset.y), 3);
-
         if (map.getZoom() < 14) { pixelW += 1; pixelH += 1; }
-
         const tlOffset = projection.fromCoordToOffset(new naver.maps.LatLng(bounds.getNE().lat(), bounds.getSW().lng()));
-
         ctx.beginPath();
         pixelMap.forEach((p) => {
             if (bounds.hasLatLng(new naver.maps.LatLng(p.lat, p.lng))) {
                 const latLng = new naver.maps.LatLng(p.lat + GRID_SIZE, p.lng);
                 const pOffset = projection.fromCoordToOffset(latLng);
-                const x = Math.floor(pOffset.x - tlOffset.x);
-                const y = Math.floor(pOffset.y - tlOffset.y);
-
                 ctx.fillStyle = p.color;
-                ctx.fillRect(x, y, Math.ceil(pixelW), Math.ceil(pixelH));
+                ctx.fillRect(Math.floor(pOffset.x - tlOffset.x), Math.floor(pOffset.y - tlOffset.y), Math.ceil(pixelW), Math.ceil(pixelH));
             }
         });
     }
 
-    // --- 마우스 미리보기 ---
     naver.maps.Event.addListener(map, 'mousemove', function(e) {
         if (!isAttackMode) { previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height); return; }
-        const projection = map.getProjection();
-        const bounds = map.getBounds();
+        const projection = map.getProjection(), bounds = map.getBounds();
         if (!projection || !bounds) return;
-
         const snapLat = Math.floor((e.coord.lat() + EPSILON) / GRID_SIZE) * GRID_SIZE;
         const snapLng = Math.floor((e.coord.lng() + EPSILON) / GRID_SIZE) * GRID_SIZE;
         if (!KOREA_BOUNDS.hasLatLng(new naver.maps.LatLng(snapLat, snapLng))) return;
-
         const center = map.getCenter();
         const centerOffset = projection.fromCoordToOffset(center);
         const nextGridOffset = projection.fromCoordToOffset(new naver.maps.LatLng(center.lat() + GRID_SIZE, center.lng() + GRID_SIZE));
         let pixelW = Math.max(Math.abs(nextGridOffset.x - centerOffset.x), 3);
         let pixelH = Math.max(Math.abs(nextGridOffset.y - centerOffset.y), 3);
-
         previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
         const latLng = new naver.maps.LatLng(snapLat + GRID_SIZE, snapLng);
         const pOffset = projection.fromCoordToOffset(latLng);
         const tlOffset = projection.fromCoordToOffset(new naver.maps.LatLng(bounds.getNE().lat(), bounds.getSW().lng()));
-
         const color = document.getElementById('colorPicker').value;
-        const r = parseInt(color.substring(1, 3), 16);
-        const g = parseInt(color.substring(3, 5), 16);
-        const b = parseInt(color.substring(5, 7), 16);
+        const r = parseInt(color.substring(1, 3), 16), g = parseInt(color.substring(3, 5), 16), b = parseInt(color.substring(5, 7), 16);
         previewCtx.fillStyle = `rgba(${r}, ${g}, ${b}, 0.5)`;
         previewCtx.strokeStyle = "white"; previewCtx.lineWidth = 1;
-
-        const px = Math.floor(pOffset.x - tlOffset.x);
-        const py = Math.floor(pOffset.y - tlOffset.y);
-
+        const px = Math.floor(pOffset.x - tlOffset.x), py = Math.floor(pOffset.y - tlOffset.y);
         previewCtx.fillRect(px, py, Math.ceil(pixelW), Math.ceil(pixelH));
         previewCtx.strokeRect(px, py, Math.ceil(pixelW), Math.ceil(pixelH));
     });
 
-    // --- 데이터 로드 ---
     function fetchVisiblePixels() {
         const bounds = map.getBounds();
         if (!bounds) return;
-        const sw = bounds.getSW();
-        const ne = bounds.getNE();
+        const sw = bounds.getSW(), ne = bounds.getNE();
         fetch(`/api/pixels?minLat=${sw.lat()}&maxLat=${ne.lat()}&minLng=${sw.lng()}&maxLng=${ne.lng()}`)
             .then(res => res.json())
             .then(data => {
@@ -450,13 +305,11 @@
                     data.forEach(p => {
                         const snapLat = (Math.floor((p.lat + EPSILON) / GRID_SIZE) * GRID_SIZE).toFixed(6);
                         const snapLng = (Math.floor((p.lng + EPSILON) / GRID_SIZE) * GRID_SIZE).toFixed(6);
-                        const key = `${snapLat},${snapLng}`;
-                        pixelMap.set(key, { ...p, lat: parseFloat(snapLat), lng: parseFloat(snapLng) });
+                        pixelMap.set(`${snapLat},${snapLng}`, { ...p, lat: parseFloat(snapLat), lng: parseFloat(snapLng) });
                     });
                     scheduleDraw();
                 }
-            })
-            .catch(err => console.warn("Load Error", err));
+            }).catch(console.warn);
     }
     naver.maps.Event.addListener(map, 'idle', fetchVisiblePixels);
     naver.maps.Event.addListener(map, 'init', fetchVisiblePixels);
@@ -466,35 +319,25 @@
     function updatePixelData(pixel) {
         const snapLat = (Math.floor((pixel.lat + EPSILON) / GRID_SIZE) * GRID_SIZE).toFixed(6);
         const snapLng = (Math.floor((pixel.lng + EPSILON) / GRID_SIZE) * GRID_SIZE).toFixed(6);
-        const key = `${snapLat},${snapLng}`;
-        pixelMap.set(key, { ...pixel, lat: parseFloat(snapLat), lng: parseFloat(snapLng) });
+        pixelMap.set(`${snapLat},${snapLng}`, { ...pixel, lat: parseFloat(snapLat), lng: parseFloat(snapLng) });
         scheduleDraw();
+        fetchRanks();
     }
 
     const socket = new SockJS('/ws-pixel');
     const stompClient = Stomp.over(socket);
-    stompClient.connect({}, () => {
-        stompClient.subscribe('/topic/pixel', (msg) => updatePixelData(JSON.parse(msg.body)));
-    });
+    stompClient.connect({}, () => { stompClient.subscribe('/topic/pixel', (msg) => updatePixelData(JSON.parse(msg.body))); });
 
-    // --- 쿨타임 UI 로직 ---
     function startCooldown(seconds) {
         isCooldown = true;
         const display = document.getElementById('ui-cooldown-overlay');
         const timerText = document.getElementById('timerText');
-
         display.style.display = 'flex';
         document.getElementById('modeBtn').style.opacity = '0.5';
-
-        let remaining = seconds;
-        timerText.innerText = remaining;
-
+        let remaining = seconds; timerText.innerText = remaining;
         if (cooldownInterval) clearInterval(cooldownInterval);
-
         cooldownInterval = setInterval(() => {
-            remaining--;
-            timerText.innerText = remaining;
-
+            remaining--; timerText.innerText = remaining;
             if (remaining <= 0) {
                 clearInterval(cooldownInterval);
                 isCooldown = false;
@@ -504,7 +347,6 @@
         }, 1000);
     }
 
-    // --- 클릭 이벤트 ---
     naver.maps.Event.addListener(map, 'click', function(e) {
         if (!isAttackMode) return;
         if (!isLoggedIn) { alert("로그인이 필요합니다!"); return; }
@@ -514,52 +356,23 @@
             setTimeout(() => hud.style.transform = 'translateX(-50%) scale(1)', 100);
             return;
         }
-
         const snapLat = Math.floor((e.coord.lat() + EPSILON) / GRID_SIZE) * GRID_SIZE;
         const snapLng = Math.floor((e.coord.lng() + EPSILON) / GRID_SIZE) * GRID_SIZE;
-
-        if (!KOREA_BOUNDS.hasLatLng(new naver.maps.LatLng(snapLat, snapLng))) {
-            alert("서비스 지역이 아닙니다.");
-            return;
-        }
-
+        if (!KOREA_BOUNDS.hasLatLng(new naver.maps.LatLng(snapLat, snapLng))) { alert("서비스 지역이 아닙니다."); return; }
         const color = document.getElementById('colorPicker').value;
         const newPixel = { lat: snapLat, lng: snapLng, color: color, userId: myNickname };
-
         updatePixelData(newPixel);
-
-        fetch('/api/pixels', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(newPixel)
-        })
-        .then(res => res.text())
-        .then(result => {
-            if (result === "SUCCESS" || result === "성공") {
-                startCooldown(COOLDOWN_TIME);
-            } else if (result.includes("쿨타임")) {
-                const numbers = result.match(/\d+/);
-                const remaining = numbers ? parseInt(numbers[0]) : 5;
+        fetch('/api/pixels', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newPixel) })
+        .then(res => res.text()).then(result => {
+            if (result === "SUCCESS" || result === "성공") { startCooldown(COOLDOWN_TIME); }
+            else if (result.includes("쿨타임")) {
+                const remaining = result.match(/\d+/) ? parseInt(result.match(/\d+/)[0]) : 5;
                 startCooldown(remaining);
-                const key = `${snapLat.toFixed(6)},${snapLng.toFixed(6)}`;
-                pixelMap.delete(key);
-                scheduleDraw();
-            } else {
-                alert(result);
-                const key = `${snapLat.toFixed(6)},${snapLng.toFixed(6)}`;
-                pixelMap.delete(key);
-                scheduleDraw();
-            }
-        })
-        .catch(err => {
-            console.error(err);
-            const key = `${snapLat.toFixed(6)},${snapLng.toFixed(6)}`;
-            pixelMap.delete(key);
-            scheduleDraw();
-        });
+                pixelMap.delete(`${snapLat.toFixed(6)},${snapLng.toFixed(6)}`); scheduleDraw();
+            } else { alert(result); pixelMap.delete(`${snapLat.toFixed(6)},${snapLng.toFixed(6)}`); scheduleDraw(); }
+        }).catch(err => { console.error(err); pixelMap.delete(`${snapLat.toFixed(6)},${snapLng.toFixed(6)}`); scheduleDraw(); });
     });
 
-    // --- 버튼 이벤트 (Dock) ---
     const modeBtn = document.getElementById('modeBtn');
     const myLocBtn = document.getElementById('myLocBtn');
     const mapDiv = document.getElementById('map');
@@ -569,18 +382,19 @@
         if (isAttackMode) {
             modeBtn.innerHTML = "⚔️ 공격 모드";
             modeBtn.className = "btn-main-action mode-attack";
-            // 엣지 스크롤 상태면 draggable은 계속 false여야 함
-            if(isEdgeScrollEnabled) {
-                map.setOptions({ draggable: false });
-            }
+            // 공격 모드일 때 화면 고정 상태(isEdgeScrollEnabled=false)면 draggable=true
+            // 화면 고정 해제 상태(isEdgeScrollEnabled=true)면 draggable=false
+            // (화면 이동 방식은 공격 모드 여부와 관계없이 '고정 버튼' 상태를 따름)
+            if(isEdgeScrollEnabled) map.setOptions({ draggable: false });
+            else map.setOptions({ draggable: true });
+
             mapDiv.classList.add('attack-cursor');
         } else {
             modeBtn.innerHTML = "📍 이동 모드";
             modeBtn.className = "btn-main-action mode-move";
-            // 이동 모드라도 고정 상태가 풀려있어야만 드래그 가능
-            if(!isEdgeScrollEnabled) {
-                map.setOptions({ draggable: true });
-            }
+            if(isEdgeScrollEnabled) map.setOptions({ draggable: false });
+            else map.setOptions({ draggable: true });
+
             mapDiv.classList.remove('attack-cursor');
             previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
         }
@@ -598,17 +412,12 @@
         );
     });
 
-    // 로그인 체크
     fetch('/api/user/me').then(res => res.ok ? res.json() : Promise.reject()).then(user => {
         isLoggedIn = true; myNickname = user.nickname || "User";
         document.getElementById('login-area').classList.add('hidden');
         document.getElementById('user-info').classList.remove('hidden');
         document.getElementById('nickname-display').innerText = myNickname;
-    }).catch(() => {
-        isLoggedIn = false;
-        document.getElementById('login-area').classList.remove('hidden');
-        document.getElementById('user-info').classList.add('hidden');
-    });
+    }).catch(() => { isLoggedIn = false; document.getElementById('login-area').classList.remove('hidden'); document.getElementById('user-info').classList.add('hidden'); });
 
     setTimeout(resizeCanvas, 500);
 </script>
