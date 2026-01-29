@@ -1,41 +1,67 @@
-version: '3'
+version: '3.8'
+
 services:
+  # 1. 스프링 부트 앱
+  app:
+    container_name: pixel-war-app
+    build: .
+    ports:
+      - "8080:8080"
+    depends_on:
+      - mysql
+      - redis
+      - kafka
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/pixelwar?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+      - SPRING_DATASOURCE_PASSWORD=root
+    restart: always
+
+  # 2. MySQL
+  mysql:
+    container_name: pixel-mysql
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: pixelwar
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./mysql_data:/var/lib/mysql # 데이터가 날아가지 않게 로컬에 저장
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    restart: always
+
+  # 3. Redis
+  redis:
+    container_name: pixel-redis
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+    restart: always
+
+  # 4. Zookeeper (Kafka 관리자)
   zookeeper:
-    image: confluentinc/cp-zookeeper:7.5.0
-    container_name: pixel-zookeeper
+    image: confluentinc/cp-zookeeper:7.6.1
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
 
+  # 5. Kafka
   kafka:
-    image: confluentinc/cp-kafka:7.5.0
     container_name: pixel-kafka
+    image: confluentinc/cp-kafka:7.6.1
     depends_on:
       - zookeeper
     ports:
       - "9092:9092"
+      - "29092:29092"
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+      # Docker 내부 통신과 외부 통신 설정
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_ENABLE_KRAFT: "false"
-
-  redis:
-    image: redis:latest
-    container_name: pixel-redis
-    ports:
-      - "6379:6379"
-
-  db:
-    image: mysql:8.0
-    container_name: pixel-db
-    ports:
-      - "3306:3306"
-    environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: pixel_war
-    volumes:
-      - ./mysql_data:/var/lib/mysql
+      # 메모리 제한 (t2.small 등에서 죽지 않도록 설정)
+      KAFKA_HEAP_OPTS: "-Xmx400m -Xms400m"
+    restart: always
