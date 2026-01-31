@@ -10,20 +10,27 @@
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap" rel="stylesheet">
 
     <style>
-        /* (스타일은 기존과 동일하므로 유지) */
-        :root { --glass-bg: rgba(20, 20, 20, 0.3); --glass-border: rgba(255, 255, 255, 0.1); --glass-highlight: rgba(255, 255, 255, 0.15); --primary-color: #FF4500; --accent-color: #00A3FF; --text-color: #ffffff; --gold: #FFD700; --silver: #C0C0C0; --bronze: #CD7F32; }
+        :root { --glass-bg: rgba(20, 20, 20, 0.6); --glass-border: rgba(255, 255, 255, 0.1); --glass-highlight: rgba(255, 255, 255, 0.15); --primary-color: #FF4500; --accent-color: #00A3FF; --text-color: #ffffff; --gold: #FFD700; --silver: #C0C0C0; --bronze: #CD7F32; }
         body { margin: 0; padding: 0; overflow: hidden; background-color: #1a1a1a; font-family: 'Noto Sans KR', sans-serif; }
+
+        /* 게임 캔버스 및 지도 */
         #game-container { position: relative; width: 100vw; height: 100vh; }
         #map { width: 100%; height: 100%; z-index: 1; outline: none; }
         #pixelCanvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; pointer-events: none; }
         #previewCanvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 11; pointer-events: none; }
-        .glass-panel { background: var(--glass-bg); backdrop-filter: blur(25px) saturate(180%); -webkit-backdrop-filter: blur(25px) saturate(180%); border: 0.5px solid var(--glass-border); box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3), inset 0 0 0 0.5px var(--glass-highlight); color: var(--text-color); transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); }
+
+        /* 공통 UI 스타일 (Glass Morphism) */
+        .glass-panel { background: var(--glass-bg); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px); border: 0.5px solid var(--glass-border); box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3); color: var(--text-color); transition: all 0.3s ease; }
+
+        /* 좌측 상단: 로그인 정보 */
         #ui-top-left { position: absolute; top: 20px; left: 20px; z-index: 100; display: flex; flex-direction: column; gap: 8px; padding: 12px 16px; border-radius: 20px; min-width: 140px; }
         .user-badge { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14px; }
         .user-badge span { color: var(--accent-color); text-shadow: 0 0 10px rgba(0, 163, 255, 0.6); }
         .btn-small { background: rgba(255,255,255,0.08); border: none; color: #ddd; padding: 6px 10px; border-radius: 12px; cursor: pointer; font-size: 11px; text-decoration: none; text-align: center; transition: background 0.2s; }
         .btn-small:hover { background: rgba(255,255,255,0.2); color: #fff; }
         .btn-kakao { background-color: #FEE500; color: #000; font-weight: bold; padding: 8px; border-radius: 12px; text-decoration: none; text-align: center; font-size: 13px; opacity: 0.9; }
+
+        /* 우측 상단: 랭킹 */
         #ui-top-right { position: absolute; top: 20px; right: 20px; z-index: 100; display: flex; flex-direction: column; gap: 5px; padding: 15px; border-radius: 20px; min-width: 180px; }
         .rank-title { font-size: 12px; font-weight: 900; color: #aaa; text-transform: uppercase; margin-bottom: 5px; letter-spacing: 1px; }
         .rank-item { display: flex; justify-content: space-between; align-items: center; font-size: 13px; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
@@ -34,9 +41,13 @@
         .rank-3 { color: var(--bronze); }
         .rank-name { flex-grow: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100px; }
         .rank-score { font-weight: bold; color: var(--accent-color); }
+
+        /* 쿨타임 오버레이 */
         #ui-cooldown-overlay { position: absolute; top: 30px; left: 50%; transform: translateX(-50%); z-index: 100; display: none; padding: 8px 24px; border-radius: 50px; background: rgba(0, 0, 0, 0.4); backdrop-filter: blur(15px); border: 1px solid rgba(255, 69, 0, 0.4); box-shadow: 0 0 25px rgba(255, 69, 0, 0.2); align-items: center; gap: 10px; }
         .timer-text { font-size: 18px; font-weight: 900; color: #FFeb3b; }
         .timer-label { font-size: 11px; color: #ccc; text-transform: uppercase; letter-spacing: 1px; }
+
+        /* 하단 컨트롤 바 */
         #ui-bottom-bar { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 100; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 12px; border-radius: 100px; width: auto; min-width: 400px; }
         .divider { width: 1px; height: 24px; background: rgba(255,255,255,0.15); margin: 0 4px; }
         .color-container { position: relative; width: 42px; height: 42px; border-radius: 50%; overflow: hidden; border: 1.5px solid rgba(255,255,255,0.4); box-shadow: 0 0 15px rgba(255,255,255,0.1); transition: transform 0.2s; cursor: pointer; }
@@ -48,22 +59,48 @@
         .btn-main-action:active { transform: scale(0.96); }
         #myLocBtn { flex-grow: 1; height: 48px; padding: 0 16px; border: none; outline: none; border-radius: 30px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.15); color: #eee; font-weight: 700; font-size: 13px; cursor: pointer; transition: all 0.2s; white-space: nowrap; display: flex; align-items: center; justify-content: center; }
         #myLocBtn:hover { background: rgba(255, 255, 255, 0.15); color: #fff; }
-        #myLocBtn:active { transform: scale(0.96); }
         #cameraLockBtn { width: 42px; height: 42px; border-radius: 50%; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.15); color: #eee; font-size: 18px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; }
-        #cameraLockBtn:hover { background: rgba(255, 255, 255, 0.15); transform: rotate(-10deg); }
         #cameraLockBtn.active-lock { background: rgba(0, 163, 255, 0.2); border-color: rgba(0, 163, 255, 0.5); color: #00A3FF; }
+
+        /* 미니맵 */
         #minimap-container { position: absolute; bottom: 20px; right: 20px; z-index: 100; width: 180px; height: 180px; border-radius: 4px; overflow: hidden; border: 2px solid rgba(200, 200, 200, 0.3); box-shadow: 0 0 20px rgba(0, 0, 0, 0.6); background: #000; }
         #mini-map-view { width: 100%; height: 100%; pointer-events: none; }
         #minimap-camera-box { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 50px; height: 30px; border: 2px solid #fff; box-shadow: 0 0 0 200px rgba(0, 0, 0, 0.5); z-index: 101; pointer-events: none; }
+
+        /* --- [신규] 채팅 UI 스타일 --- */
+        #ui-chat { position: absolute; bottom: 100px; left: 20px; z-index: 100; width: 320px; height: 240px; border-radius: 15px; display: flex; flex-direction: column; overflow: hidden; transition: transform 0.3s ease, opacity 0.3s ease; }
+        #chat-messages { flex-grow: 1; padding: 10px; overflow-y: auto; font-size: 13px; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.3) transparent; }
+        #chat-messages::-webkit-scrollbar { width: 4px; }
+        #chat-messages::-webkit-scrollbar-thumb { background-color: rgba(255,255,255,0.3); border-radius: 4px; }
+        .msg-item { margin-bottom: 4px; line-height: 1.4; word-break: break-all; }
+        .msg-sender { font-weight: bold; color: var(--accent-color); margin-right: 4px; }
+        .msg-text { color: #eee; }
+        .msg-system { color: #aaa; font-style: italic; font-size: 12px; text-align: center; margin: 5px 0; }
+
+        #chat-input-area { display: flex; padding: 8px; background: rgba(0,0,0,0.2); border-top: 1px solid rgba(255,255,255,0.05); }
+        #chatInput { flex-grow: 1; background: rgba(255,255,255,0.1); border: none; border-radius: 6px; padding: 6px 10px; color: white; font-size: 13px; outline: none; }
+        #chatInput::placeholder { color: rgba(255,255,255,0.4); }
+        #chatSendBtn { margin-left: 6px; background: var(--accent-color); border: none; color: white; border-radius: 6px; padding: 0 12px; font-size: 12px; font-weight: bold; cursor: pointer; transition: opacity 0.2s; }
+        #chatSendBtn:hover { opacity: 0.8; }
+
+        #chatToggleBtn { position: absolute; bottom: 100px; left: 20px; z-index: 99; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; cursor: pointer; display: none; }
+
         @keyframes pulse-red { 0% { box-shadow: 0 0 0 0 rgba(255, 69, 0, 0.4); } 70% { box-shadow: 0 0 0 10px rgba(255, 69, 0, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 69, 0, 0); } }
         .hidden { display: none !important; }
         .attack-cursor { cursor: crosshair !important; }
+
+        /* 모바일 반응형 */
         @media (max-width: 600px) {
             #ui-bottom-bar { width: 90%; min-width: unset; bottom: 20px; padding: 6px 10px; }
             .btn-main-action { font-size: 13px; height: 44px; }
             #myLocBtn { font-size: 12px; padding: 0 10px; }
             #minimap-container { width: 120px; height: 120px; bottom: 100px; right: 10px; opacity: 0.8; }
             #ui-top-right { top: 70px; right: 10px; scale: 0.8; transform-origin: top right; }
+
+            /* 모바일에서 채팅창 조정 */
+            #ui-chat { width: 250px; height: 180px; bottom: 80px; left: 10px; font-size: 12px; opacity: 0.9; }
+            #ui-chat.minimized { opacity: 0; pointer-events: none; transform: translateY(20px); }
+            #chatToggleBtn { display: flex; bottom: 90px; left: 10px; }
         }
     </style>
 </head>
@@ -98,14 +135,23 @@
         <span class="timer-label">sec</span>
     </div>
 
+    <button id="chatToggleBtn" class="glass-panel" title="채팅 열기/닫기">💬</button>
+    <div id="ui-chat" class="glass-panel">
+        <div id="chat-messages">
+            <div class="msg-system">채팅방에 연결되었습니다.</div>
+        </div>
+        <div id="chat-input-area">
+            <input type="text" id="chatInput" placeholder="메시지 입력..." maxlength="50" disabled>
+            <button id="chatSendBtn" disabled>전송</button>
+        </div>
+    </div>
+
     <div id="ui-bottom-bar" class="glass-panel">
         <div class="color-container" title="색상 변경"><input type="color" id="colorPicker" value="#FF4500"></div>
         <div class="divider"></div>
         <button id="modeBtn" class="btn-main-action mode-move">📍 이동 모드</button>
         <div class="divider"></div>
-
         <button id="cameraLockBtn" class="active-lock" title="화면 고정/해제">🔒</button>
-
         <div class="divider"></div>
         <button id="myLocBtn">내 위치</button>
     </div>
@@ -125,31 +171,25 @@
     const EPSILON = 0.0000001;
     const EDGE_THRESHOLD = 50;
     const SCROLL_SPEED = 15;
-
     const KOREA_BOUNDS = new naver.maps.LatLngBounds(
         new naver.maps.LatLng(32.80, 124.60),
         new naver.maps.LatLng(38.55, 132.00)
     );
 
+    // --- 상태 변수 ---
     let isAttackMode = false;
     let pixelMap = new Map();
     let myNickname = null;
     let isLoggedIn = false;
     let isCooldown = false;
     let cooldownInterval = null;
-
-    // [수정] 기본값: false (엣지 스크롤 OFF = 화면 고정 상태)
     let isEdgeScrollEnabled = false;
 
     // --- 지도 초기화 ---
     const map = new naver.maps.Map('map', {
         center: new naver.maps.LatLng(37.3595704, 127.105399),
         zoom: 16, minZoom: MIN_ZOOM, maxZoom: MAX_ZOOM, maxBounds: KOREA_BOUNDS,
-
-        // [수정] 기본값: draggable: true (화면 고정 상태이므로 드래그 가능)
-        draggable: true,
-
-        scrollWheel: true, disableDoubleClickZoom: true, tileTransition: true,
+        draggable: true, scrollWheel: true, disableDoubleClickZoom: true, tileTransition: true,
         logoControl: false, mapDataControl: false, scaleControl: false
     });
 
@@ -188,29 +228,24 @@
     setInterval(fetchRanks, 3000);
     fetchRanks();
 
-    // --- 화면 고정 로직 ---
+    // --- 화면 고정 및 엣지 스크롤 ---
     const cameraLockBtn = document.getElementById('cameraLockBtn');
     cameraLockBtn.addEventListener('click', () => {
         isEdgeScrollEnabled = !isEdgeScrollEnabled;
         if (isEdgeScrollEnabled) {
-            // 🔓 고정 해제 (엣지 스크롤 ON, 드래그 OFF)
             map.setOptions({ draggable: false });
             cameraLockBtn.innerText = "🔓";
             cameraLockBtn.classList.remove('active-lock');
         } else {
-            // 🔒 화면 고정 (엣지 스크롤 OFF, 드래그 ON)
             map.setOptions({ draggable: true });
             cameraLockBtn.innerText = "🔒";
             cameraLockBtn.classList.add('active-lock');
         }
     });
 
-    // --- 엣지 스크롤 ---
     let scrollX = 0, scrollY = 0, isScrolling = false;
     document.addEventListener('mousemove', (e) => {
-        // [중요] 엣지 스크롤이 비활성화(화면 고정) 상태면 실행 안함
         if (!isEdgeScrollEnabled) return;
-
         const w = window.innerWidth, h = window.innerHeight;
         const x = e.clientX, y = e.clientY;
         scrollX = 0; scrollY = 0;
@@ -228,7 +263,7 @@
         requestAnimationFrame(performEdgeScroll);
     }
 
-    // --- 캔버스 & 픽셀 로직 ---
+    // --- 캔버스 & 픽셀 드로잉 ---
     const canvas = document.getElementById('pixelCanvas');
     const ctx = canvas.getContext('2d');
     const previewCanvas = document.getElementById('previewCanvas');
@@ -324,10 +359,88 @@
         fetchRanks();
     }
 
+    // --- [수정] WebSocket & 채팅 통합 ---
     const socket = new SockJS('/ws-pixel');
     const stompClient = Stomp.over(socket);
-    stompClient.connect({}, () => { stompClient.subscribe('/topic/pixel', (msg) => updatePixelData(JSON.parse(msg.body))); });
+    const roomId = "1"; // 채팅방 ID (단일방)
 
+    stompClient.connect({}, () => {
+        // 1. 픽셀 업데이트 구독 (경로 수정: /topic -> /sub)
+        stompClient.subscribe('/sub/pixel', (msg) => updatePixelData(JSON.parse(msg.body)));
+        // (혹시 백엔드가 여전히 /topic/pixel을 쓴다면 아래 줄 주석 해제)
+        // stompClient.subscribe('/topic/pixel', (msg) => updatePixelData(JSON.parse(msg.body)));
+
+        // 2. 채팅 구독
+        stompClient.subscribe('/sub/chat/room/' + roomId, function (chatMessage) {
+            appendChatMessage(JSON.parse(chatMessage.body));
+        });
+
+        // 3. 입장 메시지 (로그인 된 경우만)
+        if (isLoggedIn && myNickname) {
+            sendChatMessage('ENTER', '');
+            document.getElementById('chatInput').disabled = false;
+            document.getElementById('chatSendBtn').disabled = false;
+        }
+    });
+
+    // 채팅 메시지 화면 추가 함수
+    function appendChatMessage(message) {
+        const chatBox = document.getElementById('chat-messages');
+        const msgDiv = document.createElement('div');
+
+        if (message.type === 'ENTER') {
+            msgDiv.className = 'msg-system';
+            msgDiv.innerText = message.message;
+        } else {
+            msgDiv.className = 'msg-item';
+            msgDiv.innerHTML = `<span class="msg-sender">${message.sender}:</span><span class="msg-text">${message.message}</span>`;
+        }
+
+        chatBox.appendChild(msgDiv);
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    // 채팅 전송 함수
+    function sendChatMessage(type, text) {
+        if (!stompClient || !isLoggedIn) return;
+        stompClient.send("/pub/chat/message", {}, JSON.stringify({
+            type: type,
+            roomId: roomId,
+            sender: myNickname,
+            message: text
+        }));
+    }
+
+    // 채팅 UI 이벤트 리스너
+    const chatInput = document.getElementById('chatInput');
+    const chatSendBtn = document.getElementById('chatSendBtn');
+    const chatToggleBtn = document.getElementById('chatToggleBtn');
+    const chatUi = document.getElementById('ui-chat');
+
+    chatSendBtn.addEventListener('click', () => {
+        const msg = chatInput.value;
+        if (msg.trim() !== '') {
+            sendChatMessage('TALK', msg);
+            chatInput.value = '';
+        }
+    });
+
+    chatInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            const msg = chatInput.value;
+            if (msg.trim() !== '') {
+                sendChatMessage('TALK', msg);
+                chatInput.value = '';
+            }
+        }
+    });
+
+    // 모바일용 채팅 토글
+    chatToggleBtn.addEventListener('click', () => {
+        chatUi.classList.toggle('minimized');
+    });
+
+    // --- 쿨타임 및 클릭 로직 ---
     function startCooldown(seconds) {
         isCooldown = true;
         const display = document.getElementById('ui-cooldown-overlay');
@@ -382,19 +495,14 @@
         if (isAttackMode) {
             modeBtn.innerHTML = "⚔️ 공격 모드";
             modeBtn.className = "btn-main-action mode-attack";
-            // 공격 모드일 때 화면 고정 상태(isEdgeScrollEnabled=false)면 draggable=true
-            // 화면 고정 해제 상태(isEdgeScrollEnabled=true)면 draggable=false
-            // (화면 이동 방식은 공격 모드 여부와 관계없이 '고정 버튼' 상태를 따름)
             if(isEdgeScrollEnabled) map.setOptions({ draggable: false });
             else map.setOptions({ draggable: true });
-
             mapDiv.classList.add('attack-cursor');
         } else {
             modeBtn.innerHTML = "📍 이동 모드";
             modeBtn.className = "btn-main-action mode-move";
             if(isEdgeScrollEnabled) map.setOptions({ draggable: false });
             else map.setOptions({ draggable: true });
-
             mapDiv.classList.remove('attack-cursor');
             previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
         }
@@ -412,11 +520,19 @@
         );
     });
 
+    // 사용자 정보 로드 및 채팅 활성화
     fetch('/api/user/me').then(res => res.ok ? res.json() : Promise.reject()).then(user => {
         isLoggedIn = true; myNickname = user.nickname || "User";
         document.getElementById('login-area').classList.add('hidden');
         document.getElementById('user-info').classList.remove('hidden');
         document.getElementById('nickname-display').innerText = myNickname;
+
+        // 로그인 성공 시 채팅 입력창 활성화 및 입장 처리
+        document.getElementById('chatInput').disabled = false;
+        document.getElementById('chatSendBtn').disabled = false;
+        if(stompClient && stompClient.connected) {
+            sendChatMessage('ENTER', '');
+        }
     }).catch(() => { isLoggedIn = false; document.getElementById('login-area').classList.remove('hidden'); document.getElementById('user-info').classList.add('hidden'); });
 
     setTimeout(resizeCanvas, 500);
