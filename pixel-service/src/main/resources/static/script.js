@@ -266,26 +266,18 @@
         }
     });
 
-    // --- 채팅 토글 로직 (수정됨) ---
+    // --- [수정] 채팅 토글 로직 (헤더바 클릭) ---
     const chatUi = document.getElementById('ui-chat');
-    const chatToggleBtn = document.getElementById('chatToggleBtn');
+    const chatHeader = document.getElementById('chat-header');
 
-    // 초기 상태: 열려있음 -> 닫기 아이콘(❌)
-    chatToggleBtn.innerHTML = "❌";
-
-    chatToggleBtn.addEventListener('click', () => {
+    chatHeader.addEventListener('click', () => {
         chatUi.classList.toggle('minimized');
 
-        if (chatUi.classList.contains('minimized')) {
-            // 닫힘 -> 말풍선(💬)
-            chatToggleBtn.innerHTML = "💬";
-        } else {
-            // 열림 -> 닫기(❌)
-            chatToggleBtn.innerHTML = "❌";
-            // 열릴 때 최신 메시지 보기 위해 스크롤 하단 이동
-            const chatBox = document.getElementById('chat-messages');
+        // 상태 변경 시 스크롤을 최하단으로 맞춰 최신 메시지 보여주기
+        const chatBox = document.getElementById('chat-messages');
+        setTimeout(() => {
             chatBox.scrollTop = chatBox.scrollHeight;
-        }
+        }, 300); // transition 시간과 얼추 맞춤
     });
 
     // --- 쿨타임 및 클릭 로직 ---

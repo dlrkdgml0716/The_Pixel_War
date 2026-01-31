@@ -9,6 +9,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
 <body>
 
@@ -41,11 +42,16 @@
         <span class="timer-label">sec</span>
     </div>
 
-    <button id="chatToggleBtn" class="glass-panel" title="채팅 열기/닫기">❌</button>
     <div id="ui-chat" class="glass-panel">
+        <div id="chat-header">
+            <span class="chat-title">💬 Live Chat</span>
+            <i id="chat-toggle-icon" class="fas fa-chevron-down"></i>
+        </div>
+
         <div id="chat-messages">
             <div class="msg-system">채팅방에 연결되었습니다.</div>
         </div>
+
         <div id="chat-input-area">
             <input type="text" id="chatInput" placeholder="메시지 입력..." maxlength="50" disabled>
             <button id="chatSendBtn" disabled>전송</button>
