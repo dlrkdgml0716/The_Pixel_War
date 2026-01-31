@@ -68,7 +68,7 @@ public class PixelConsumer {
             PixelRequest snappedRequest = new PixelRequest(snappedLat, snappedLng, request.color(), newOwner);
 
             // WebSocket 전송
-            messagingTemplate.convertAndSend("/topic/pixel", snappedRequest);
+            messagingTemplate.convertAndSend("/sub/pixel", snappedRequest);
 
         } catch (Exception e) {
             log.error("Kafka Consume Error", e);

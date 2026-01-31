@@ -1,0 +1,138 @@
+:root { --glass-bg: rgba(20, 20, 20, 0.6); --glass-border: rgba(255, 255, 255, 0.1); --glass-highlight: rgba(255, 255, 255, 0.15); --primary-color: #FF4500; --accent-color: #00A3FF; --text-color: #ffffff; --gold: #FFD700; --silver: #C0C0C0; --bronze: #CD7F32; }
+        body { margin: 0; padding: 0; overflow: hidden; background-color: #1a1a1a; font-family: 'Noto Sans KR', sans-serif; }
+
+        /* 게임 캔버스 및 지도 */
+        #game-container { position: relative; width: 100vw; height: 100vh; }
+        #map { width: 100%; height: 100%; z-index: 1; outline: none; }
+        #pixelCanvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; pointer-events: none; }
+        #previewCanvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 11; pointer-events: none; }
+
+        /* 공통 UI 스타일 (Glass Morphism) */
+        .glass-panel { background: var(--glass-bg); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px); border: 0.5px solid var(--glass-border); box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3); color: var(--text-color); transition: all 0.3s ease; }
+
+        /* 좌측 상단: 로그인 정보 */
+        #ui-top-left { position: absolute; top: 20px; left: 20px; z-index: 100; display: flex; flex-direction: column; gap: 8px; padding: 12px 16px; border-radius: 20px; min-width: 140px; }
+        .user-badge { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14px; }
+        .user-badge span { color: var(--accent-color); text-shadow: 0 0 10px rgba(0, 163, 255, 0.6); }
+        .btn-small { background: rgba(255,255,255,0.08); border: none; color: #ddd; padding: 6px 10px; border-radius: 12px; cursor: pointer; font-size: 11px; text-decoration: none; text-align: center; transition: background 0.2s; }
+        .btn-small:hover { background: rgba(255,255,255,0.2); color: #fff; }
+        .btn-kakao { background-color: #FEE500; color: #000; font-weight: bold; padding: 8px; border-radius: 12px; text-decoration: none; text-align: center; font-size: 13px; opacity: 0.9; }
+
+        /* 우측 상단: 랭킹 */
+        #ui-top-right { position: absolute; top: 20px; right: 20px; z-index: 100; display: flex; flex-direction: column; gap: 5px; padding: 15px; border-radius: 20px; min-width: 180px; }
+        .rank-title { font-size: 12px; font-weight: 900; color: #aaa; text-transform: uppercase; margin-bottom: 5px; letter-spacing: 1px; }
+        .rank-item { display: flex; justify-content: space-between; align-items: center; font-size: 13px; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .rank-item:last-child { border-bottom: none; }
+        .rank-num { font-weight: bold; width: 20px; text-align: center; margin-right: 5px; }
+        .rank-1 { color: var(--gold); text-shadow: 0 0 10px rgba(255, 215, 0, 0.5); }
+        .rank-2 { color: var(--silver); }
+        .rank-3 { color: var(--bronze); }
+        .rank-name { flex-grow: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100px; }
+        .rank-score { font-weight: bold; color: var(--accent-color); }
+
+        /* 쿨타임 오버레이 */
+        #ui-cooldown-overlay { position: absolute; top: 30px; left: 50%; transform: translateX(-50%); z-index: 100; display: none; padding: 8px 24px; border-radius: 50px; background: rgba(0, 0, 0, 0.4); backdrop-filter: blur(15px); border: 1px solid rgba(255, 69, 0, 0.4); box-shadow: 0 0 25px rgba(255, 69, 0, 0.2); align-items: center; gap: 10px; }
+        .timer-text { font-size: 18px; font-weight: 900; color: #FFeb3b; }
+        .timer-label { font-size: 11px; color: #ccc; text-transform: uppercase; letter-spacing: 1px; }
+
+        /* 하단 컨트롤 바 */
+        #ui-bottom-bar { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 100; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 12px; border-radius: 100px; width: auto; min-width: 400px; }
+        .divider { width: 1px; height: 24px; background: rgba(255,255,255,0.15); margin: 0 4px; }
+        .color-container { position: relative; width: 42px; height: 42px; border-radius: 50%; overflow: hidden; border: 1.5px solid rgba(255,255,255,0.4); box-shadow: 0 0 15px rgba(255,255,255,0.1); transition: transform 0.2s; cursor: pointer; }
+        .color-container:hover { transform: scale(1.1); border-color: #fff; }
+        #colorPicker { position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; border: none; padding: 0; margin: 0; cursor: pointer; }
+        .btn-main-action { flex-grow: 2; height: 48px; border: none; outline: none; border-radius: 30px; font-weight: 800; font-size: 15px; color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.3s; text-shadow: 0 1px 2px rgba(0,0,0,0.2); }
+        .mode-move { background: linear-gradient(135deg, rgba(76, 175, 80, 0.6), rgba(46, 125, 50, 0.7)); box-shadow: 0 4px 15px rgba(76, 175, 80, 0.2); border: 1px solid rgba(76, 175, 80, 0.3); }
+        .mode-attack { background: linear-gradient(135deg, rgba(255, 69, 0, 0.6), rgba(213, 0, 0, 0.7)); box-shadow: 0 4px 20px rgba(255, 69, 0, 0.3); border: 1px solid rgba(255, 69, 0, 0.3); animation: pulse-red 2s infinite; }
+        .btn-main-action:active { transform: scale(0.96); }
+        #myLocBtn { flex-grow: 1; height: 48px; padding: 0 16px; border: none; outline: none; border-radius: 30px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.15); color: #eee; font-weight: 700; font-size: 13px; cursor: pointer; transition: all 0.2s; white-space: nowrap; display: flex; align-items: center; justify-content: center; }
+        #myLocBtn:hover { background: rgba(255, 255, 255, 0.15); color: #fff; }
+        #cameraLockBtn { width: 42px; height: 42px; border-radius: 50%; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.15); color: #eee; font-size: 18px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; }
+        #cameraLockBtn.active-lock { background: rgba(0, 163, 255, 0.2); border-color: rgba(0, 163, 255, 0.5); color: #00A3FF; }
+
+        /* 미니맵 */
+        #minimap-container { position: absolute; bottom: 20px; right: 20px; z-index: 100; width: 180px; height: 180px; border-radius: 4px; overflow: hidden; border: 2px solid rgba(200, 200, 200, 0.3); box-shadow: 0 0 20px rgba(0, 0, 0, 0.6); background: #000; }
+        #mini-map-view { width: 100%; height: 100%; pointer-events: none; }
+        #minimap-camera-box { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 50px; height: 30px; border: 2px solid #fff; box-shadow: 0 0 0 200px rgba(0, 0, 0, 0.5); z-index: 101; pointer-events: none; }
+
+        /* --- 채팅 UI 스타일 (수정됨) --- */
+        #ui-chat {
+            position: absolute;
+            bottom: 20px; /* 버튼 위쪽으로 배치 */
+            left: 20px;
+            z-index: 100;
+            width: 320px;
+            height: 240px;
+            border-radius: 15px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            /* 부드러운 토글 애니메이션 */
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            transform-origin: bottom left;
+            opacity: 1;
+            transform: scale(1) translateY(0);
+        }
+
+        /* 채팅창 숨김 상태 */
+        #ui-chat.minimized {
+            opacity: 0;
+            pointer-events: none;
+            transform: scale(0.8) translateY(20px);
+        }
+
+        #chat-messages { flex-grow: 1; padding: 10px; overflow-y: auto; font-size: 13px; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.3) transparent; }
+        #chat-messages::-webkit-scrollbar { width: 4px; }
+        #chat-messages::-webkit-scrollbar-thumb { background-color: rgba(255,255,255,0.3); border-radius: 4px; }
+        .msg-item { margin-bottom: 4px; line-height: 1.4; word-break: break-all; }
+        .msg-sender { font-weight: bold; color: var(--accent-color); margin-right: 4px; }
+        .msg-text { color: #eee; }
+        .msg-system { color: #aaa; font-style: italic; font-size: 12px; text-align: center; margin: 5px 0; }
+
+        #chat-input-area { display: flex; padding: 8px; background: rgba(0,0,0,0.2); border-top: 1px solid rgba(255,255,255,0.05); }
+        #chatInput { flex-grow: 1; background: rgba(255,255,255,0.1); border: none; border-radius: 6px; padding: 6px 10px; color: white; font-size: 13px; outline: none; }
+        #chatInput::placeholder { color: rgba(255,255,255,0.4); }
+        #chatSendBtn { margin-left: 6px; background: var(--accent-color); border: none; color: white; border-radius: 6px; padding: 0 12px; font-size: 12px; font-weight: bold; cursor: pointer; transition: opacity 0.2s; }
+        #chatSendBtn:hover { opacity: 0.8; }
+
+        /* 채팅 토글 버튼 (항상 표시) */
+        #chatToggleBtn {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            z-index: 101;
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            cursor: pointer;
+            border: none;
+            background: var(--glass-bg);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--glass-border);
+            color: white;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            transition: transform 0.2s;
+        }
+        #chatToggleBtn:hover { transform: scale(1.1); background: rgba(255,255,255,0.1); }
+        #chatToggleBtn:active { transform: scale(0.9); }
+
+        @keyframes pulse-red { 0% { box-shadow: 0 0 0 0 rgba(255, 69, 0, 0.4); } 70% { box-shadow: 0 0 0 10px rgba(255, 69, 0, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 69, 0, 0); } }
+        .hidden { display: none !important; }
+        .attack-cursor { cursor: crosshair !important; }
+
+        /* 모바일 반응형 */
+        @media (max-width: 600px) {
+            #ui-bottom-bar { width: 90%; min-width: unset; bottom: 20px; padding: 6px 10px; }
+            .btn-main-action { font-size: 13px; height: 44px; }
+            #myLocBtn { font-size: 12px; padding: 0 10px; }
+            #minimap-container { width: 120px; height: 120px; bottom: 100px; right: 10px; opacity: 0.8; }
+            #ui-top-right { top: 70px; right: 10px; scale: 0.8; transform-origin: top right; }
+
+            /* 모바일에서 채팅창 조정 */
+            #ui-chat { width: 260px; height: 200px; bottom: 80px; left: 15px; font-size: 12px; }
+            #chatToggleBtn { bottom: 20px; left: 15px; width: 42px; height: 42px; font-size: 18px; }
+        }
