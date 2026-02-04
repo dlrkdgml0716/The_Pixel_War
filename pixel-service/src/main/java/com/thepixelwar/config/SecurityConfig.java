@@ -4,6 +4,7 @@ import com.thepixelwar.service.CustomOAuth2UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -24,9 +25,13 @@ public class SecurityConfig {
                 .formLogin(AbstractHttpConfigurer::disable) // 일반 로그인 끄기
 
                 .authorizeHttpRequests(auth -> auth
-                        // 누구나 접속 가능한 주소
-                        .requestMatchers("/", "/index.html", "/css/**", "/js/**", "/api/pixels/**", "/ws-pixel/**").permitAll()
-                        // 나머지는 로그인해야 접속 가능
+                        .requestMatchers("/", "/index.html", "/css/**", "/js/**", "/images/**", "/favicon.ico").permitAll()
+                        .requestMatchers("/api/ranks").permitAll()
+                        .requestMatchers("/ws-pixel/**").permitAll()
+
+                        .requestMatchers(HttpMethod.GET, "/api/pixels/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/pixels/**").authenticated() // 👈 찍는 건 막음!
+
                         .anyRequest().authenticated()
                 )
 
