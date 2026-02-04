@@ -14,6 +14,7 @@ const KOREA_BOUNDS = new naver.maps.LatLngBounds(
 // --- 상태 변수 ---
 let isAttackMode = false;
 let pixelMap = new Map();
+let cachedHeatmapData = []; // 🔥 [추가] 히트맵 데이터 캐싱용 변수
 let myNickname = null;
 let isLoggedIn = false;
 let isCooldown = false;
@@ -119,7 +120,23 @@ const heatmapCtx = heatmapCanvas.getContext('2d');
 let isDrawing = false, needsRedraw = false;
 
 function scheduleDraw() { needsRedraw = true; if (!isDrawing) { isDrawing = true; requestAnimationFrame(drawLoop); } }
-function drawLoop() { if (needsRedraw) { drawPixels(); needsRedraw = false; requestAnimationFrame(drawLoop); } else { isDrawing = false; } }
+
+// 🔥 [수정] drawLoop 함수: 픽셀과 히트맵을 매 프레임마다 같이 그림
+function drawLoop() {
+    if (needsRedraw) {
+        drawPixels();
+
+        // 히트맵 모드이고 데이터가 있으면 다시 그리기 (드래그 시 위치 보정됨)
+        if (isHeatmapMode && cachedHeatmapData.length > 0) {
+            drawHeatmap(cachedHeatmapData);
+        }
+
+        needsRedraw = false;
+        requestAnimationFrame(drawLoop);
+    } else {
+        isDrawing = false;
+    }
+}
 
 function resizeCanvas() {
     const size = map.getSize();
@@ -400,12 +417,14 @@ heatmapBtn.addEventListener('click', () => {
     }
 });
 
+// 🔥 [수정] loadHeatmap: 데이터만 받아와서 전역 변수에 저장
 function loadHeatmap() {
     if (!isHeatmapMode) return;
     fetch('/api/pixels/hot')
         .then(res => res.json())
         .then(data => {
-            drawHeatmap(data);
+            cachedHeatmapData = data; // 저장만 함 (그리는 건 drawLoop가 담당)
+            drawHeatmap(cachedHeatmapData); // 처음 한 번은 바로 그리기
         })
         .catch(console.error);
 }
