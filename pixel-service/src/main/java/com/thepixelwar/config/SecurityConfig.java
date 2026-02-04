@@ -25,7 +25,7 @@ public class SecurityConfig {
                 .formLogin(AbstractHttpConfigurer::disable) // 일반 로그인 끄기
 
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/", "/index.html", "/css/**", "/js/**", "/images/**", "/favicon.ico").permitAll()
+                        .requestMatchers("/", "/index.html", "/style.css", "/script.js", "/favicon.ico").permitAll()
                         .requestMatchers("/api/ranks").permitAll()
                         .requestMatchers("/ws-pixel/**").permitAll()
 
