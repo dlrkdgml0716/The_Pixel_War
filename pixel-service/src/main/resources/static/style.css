@@ -4,8 +4,13 @@ body { margin: 0; padding: 0; overflow: hidden; background-color: #1a1a1a; font-
 /* 게임 캔버스 및 지도 */
 #game-container { position: relative; width: 100vw; height: 100vh; }
 #map { width: 100%; height: 100%; z-index: 1; outline: none; }
+
+/* 캔버스 레이어 순서 정리 */
 #pixelCanvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; pointer-events: none; }
-#previewCanvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 11; pointer-events: none; }
+/* [추가] 히트맵 캔버스 */
+#heatmapCanvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 11; pointer-events: none; }
+/* 미리보기(커서)가 제일 위에 와야 함 */
+#previewCanvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 12; pointer-events: none; }
 
 /* 공통 UI 스타일 (Glass Morphism) */
 .glass-panel { background: var(--glass-bg); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px); border: 0.5px solid var(--glass-border); box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3); color: var(--text-color); transition: all 0.3s ease; }
@@ -55,23 +60,21 @@ body { margin: 0; padding: 0; overflow: hidden; background-color: #1a1a1a; font-
 #mini-map-view { width: 100%; height: 100%; pointer-events: none; }
 #minimap-camera-box { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 50px; height: 30px; border: 2px solid #fff; box-shadow: 0 0 0 200px rgba(0, 0, 0, 0.5); z-index: 101; pointer-events: none; }
 
-/* --- [수정] 채팅 UI 스타일 --- */
+/* 채팅 UI 스타일 */
 #ui-chat {
     position: absolute;
     bottom: 20px;
     left: 20px;
     z-index: 100;
     width: 320px;
-    height: 280px; /* 기본 전체 높이 */
+    height: 280px;
     border-radius: 15px;
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    /* 높이 변경 시 부드럽게 */
     transition: height 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 
-/* [신규] 채팅창 헤더 (토글 핸들) */
 #chat-header {
     height: 32px;
     background: rgba(255,255,255,0.08);
@@ -80,37 +83,17 @@ body { margin: 0; padding: 0; overflow: hidden; background-color: #1a1a1a; font-
     align-items: center;
     justify-content: space-between;
     padding: 0 15px;
-    cursor: pointer; /* 클릭 가능 표시 */
+    cursor: pointer;
     flex-shrink: 0;
 }
 #chat-header:hover { background: rgba(255,255,255,0.15); }
-
 .chat-title { font-size: 12px; font-weight: bold; color: #ccc; }
 #chat-toggle-icon { font-size: 12px; color: #aaa; transition: transform 0.4s; }
 
-/* [신규] 최소화 상태 (메시지 3~4줄만 보이도록 높이 축소) */
-#ui-chat.minimized {
-    height: 110px; /* 헤더 + 최근 메시지 조금 보이는 높이 */
-}
-
-/* 최소화 시 아이콘 회전 */
-#ui-chat.minimized #chat-toggle-icon {
-    transform: rotate(180deg); /* 화살표 위로 */
-}
-
-/* 최소화 시 입력창 숨김 */
-#ui-chat.minimized #chat-input-area {
-    display: none;
-}
-
-/* 최소화 시 스크롤바 숨기고 깔끔하게 */
-#ui-chat.minimized #chat-messages {
-    overflow: hidden; /* 스크롤바 제거 */
-    /* 아래쪽(최신 메시지) 정렬 효과 */
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-end;
-}
+#ui-chat.minimized { height: 110px; }
+#ui-chat.minimized #chat-toggle-icon { transform: rotate(180deg); }
+#ui-chat.minimized #chat-input-area { display: none; }
+#ui-chat.minimized #chat-messages { overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; }
 
 #chat-messages {
     flex-grow: 1;
@@ -151,10 +134,9 @@ body { margin: 0; padding: 0; overflow: hidden; background-color: #1a1a1a; font-
     #myLocBtn { font-size: 12px; padding: 0 10px; }
     #minimap-container { width: 120px; height: 120px; bottom: 100px; right: 10px; opacity: 0.8; }
     #ui-top-right { top: 70px; right: 10px; scale: 0.8; transform-origin: top right; }
-
-    /* 모바일에서 채팅창 조정 */
     #ui-chat { width: 260px; height: 220px; bottom: 80px; left: 15px; font-size: 12px; }
 }
+
 #heatmapBtn {
     width: 42px; height: 42px;
     border-radius: 50%;

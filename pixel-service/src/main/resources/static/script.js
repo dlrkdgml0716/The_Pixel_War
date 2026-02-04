@@ -64,7 +64,7 @@ function fetchRanks() {
 setInterval(fetchRanks, 3000);
 fetchRanks();
 
-// --- [수정] 화면 고정 및 엣지 스크롤 ---
+// --- 화면 고정 및 엣지 스크롤 ---
 const cameraLockBtn = document.getElementById('cameraLockBtn');
 cameraLockBtn.addEventListener('click', () => {
     isEdgeScrollEnabled = !isEdgeScrollEnabled;
@@ -111,6 +111,11 @@ const canvas = document.getElementById('pixelCanvas');
 const ctx = canvas.getContext('2d');
 const previewCanvas = document.getElementById('previewCanvas');
 const previewCtx = previewCanvas.getContext('2d');
+
+// [추가] 히트맵 전용 캔버스
+const heatmapCanvas = document.getElementById('heatmapCanvas');
+const heatmapCtx = heatmapCanvas.getContext('2d');
+
 let isDrawing = false, needsRedraw = false;
 
 function scheduleDraw() { needsRedraw = true; if (!isDrawing) { isDrawing = true; requestAnimationFrame(drawLoop); } }
@@ -121,7 +126,12 @@ function resizeCanvas() {
     if (size.width === 0 || size.height === 0) return;
     canvas.width = size.width; canvas.height = size.height;
     previewCanvas.width = size.width; previewCanvas.height = size.height;
+
+    // [추가] 히트맵 캔버스 리사이즈
+    heatmapCanvas.width = size.width; heatmapCanvas.height = size.height;
+
     scheduleDraw();
+    if(isHeatmapMode) loadHeatmap(); // 리사이즈 시 히트맵 다시 그리기
 }
 window.addEventListener('resize', resizeCanvas);
 
@@ -159,7 +169,10 @@ naver.maps.Event.addListener(map, 'mousemove', function(e) {
     const nextGridOffset = projection.fromCoordToOffset(new naver.maps.LatLng(center.lat() + GRID_SIZE, center.lng() + GRID_SIZE));
     let pixelW = Math.max(Math.abs(nextGridOffset.x - centerOffset.x), 3);
     let pixelH = Math.max(Math.abs(nextGridOffset.y - centerOffset.y), 3);
+
+    // [중요] 미리보기 캔버스만 지웁니다. (히트맵 캔버스는 건드리지 않음)
     previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+
     const latLng = new naver.maps.LatLng(snapLat + GRID_SIZE, snapLng);
     const pOffset = projection.fromCoordToOffset(latLng);
     const tlOffset = projection.fromCoordToOffset(new naver.maps.LatLng(bounds.getNE().lat(), bounds.getSW().lng()));
@@ -205,18 +218,13 @@ function updatePixelData(pixel) {
 // --- WebSocket & 채팅 통합 ---
 const socket = new SockJS('/ws-pixel');
 const stompClient = Stomp.over(socket);
-const roomId = "1"; // 채팅방 ID (단일방)
+const roomId = "1";
 
 stompClient.connect({}, () => {
-    // 1. 픽셀 업데이트 구독
     stompClient.subscribe('/sub/pixel', (msg) => updatePixelData(JSON.parse(msg.body)));
-
-    // 2. 채팅 구독
     stompClient.subscribe('/sub/chat/room/' + roomId, function (chatMessage) {
         appendChatMessage(JSON.parse(chatMessage.body));
     });
-
-    // 3. 입장 메시지 (로그인 된 경우만)
     if (isLoggedIn && myNickname) {
         sendChatMessage('ENTER', '');
         document.getElementById('chatInput').disabled = false;
@@ -224,11 +232,9 @@ stompClient.connect({}, () => {
     }
 });
 
-// 채팅 메시지 화면 추가 함수
 function appendChatMessage(message) {
     const chatBox = document.getElementById('chat-messages');
     const msgDiv = document.createElement('div');
-
     if (message.type === 'ENTER') {
         msgDiv.className = 'msg-system';
         msgDiv.innerText = message.message;
@@ -236,12 +242,10 @@ function appendChatMessage(message) {
         msgDiv.className = 'msg-item';
         msgDiv.innerHTML = `<span class="msg-sender">${message.sender}:</span><span class="msg-text">${message.message}</span>`;
     }
-
     chatBox.appendChild(msgDiv);
     chatBox.scrollTop = chatBox.scrollHeight;
 }
 
-// 채팅 전송 함수
 function sendChatMessage(type, text) {
     if (!stompClient || !isLoggedIn) return;
     stompClient.send("/pub/chat/message", {}, JSON.stringify({
@@ -252,7 +256,6 @@ function sendChatMessage(type, text) {
     }));
 }
 
-// 채팅 UI 이벤트 리스너
 const chatInput = document.getElementById('chatInput');
 const chatSendBtn = document.getElementById('chatSendBtn');
 
@@ -274,18 +277,15 @@ chatInput.addEventListener('keypress', (e) => {
     }
 });
 
-// --- 채팅 토글 로직 (헤더바 클릭) ---
 const chatUi = document.getElementById('ui-chat');
 const chatHeader = document.getElementById('chat-header');
 
 chatHeader.addEventListener('click', () => {
     chatUi.classList.toggle('minimized');
-
-    // 상태 변경 시 스크롤을 최하단으로 맞춰 최신 메시지 보여주기
     const chatBox = document.getElementById('chat-messages');
     setTimeout(() => {
         chatBox.scrollTop = chatBox.scrollHeight;
-    }, 300); // transition 시간과 얼추 맞춤
+    }, 300);
 });
 
 // --- 쿨타임 및 클릭 로직 ---
@@ -341,24 +341,18 @@ const mapDiv = document.getElementById('map');
 modeBtn.addEventListener('click', () => {
     isAttackMode = !isAttackMode;
     if (isAttackMode) {
-        // [수정] 공격 모드: 무조건 드래그 금지 (클릭해야 하니까)
         modeBtn.innerHTML = "⚔️ 공격 모드";
         modeBtn.className = "btn-main-action mode-attack";
         map.setOptions({ draggable: false });
         mapDiv.classList.add('attack-cursor');
     } else {
-        // [수정] 이동 모드: 화면 잠금 상태에 따라 드래그 여부 결정
         modeBtn.innerHTML = "📍 이동 모드";
         modeBtn.className = "btn-main-action mode-move";
-
         if(isEdgeScrollEnabled) {
-             // 엣지 스크롤 ON이면 드래그 OFF
             map.setOptions({ draggable: false });
         } else {
-             // 엣지 스크롤 OFF면 드래그 ON (일반 지도처럼)
             map.setOptions({ draggable: true });
         }
-
         mapDiv.classList.remove('attack-cursor');
         previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
     }
@@ -376,14 +370,11 @@ myLocBtn.addEventListener('click', () => {
     );
 });
 
-// 사용자 정보 로드 및 채팅 활성화
 fetch('/api/user/me').then(res => res.ok ? res.json() : Promise.reject()).then(user => {
     isLoggedIn = true; myNickname = user.nickname || "User";
     document.getElementById('login-area').classList.add('hidden');
     document.getElementById('user-info').classList.remove('hidden');
     document.getElementById('nickname-display').innerText = myNickname;
-
-    // 로그인 성공 시 채팅 입력창 활성화 및 입장 처리
     document.getElementById('chatInput').disabled = false;
     document.getElementById('chatSendBtn').disabled = false;
     if(stompClient && stompClient.connected) {
@@ -401,18 +392,16 @@ heatmapBtn.addEventListener('click', () => {
 
     if (isHeatmapMode) {
         heatmapBtn.classList.add('active-heat');
-        loadHeatmap(); // 데이터 가져오기
+        loadHeatmap();
     } else {
         heatmapBtn.classList.remove('active-heat');
-        // 히트맵 끄면 미리보기 캔버스 지우기
-        previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+        // [수정] 히트맵 전용 캔버스 지우기
+        heatmapCtx.clearRect(0, 0, heatmapCanvas.width, heatmapCanvas.height);
     }
 });
 
 function loadHeatmap() {
     if (!isHeatmapMode) return;
-
-    // 1. 서버에 "핫한 좌표 500개 줘!" 요청
     fetch('/api/pixels/hot')
         .then(res => res.json())
         .then(data => {
@@ -424,72 +413,43 @@ function loadHeatmap() {
 function drawHeatmap(hotPixels) {
     if (!isHeatmapMode) return;
 
-    // 그리기 전에 캔버스 초기화
-    previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+    // [수정] 히트맵 전용 캔버스 사용
+    heatmapCtx.clearRect(0, 0, heatmapCanvas.width, heatmapCanvas.height);
 
     const projection = map.getProjection();
     const bounds = map.getBounds();
-    const tlOffset = projection.fromCoordToOffset(bounds.getNE()); // 캔버스 기준점 계산용
+    const tlOffset = projection.fromCoordToOffset(bounds.getNE());
 
-    // 블러 효과를 줘서 '열기(Heat)'처럼 보이게 함
-    previewCtx.filter = 'blur(8px)';
-    previewCtx.globalCompositeOperation = 'lighter'; // 색이 겹치면 더 밝아지게 (광원 효과)
+    heatmapCtx.filter = 'blur(8px)';
+    heatmapCtx.globalCompositeOperation = 'lighter';
 
     hotPixels.forEach(p => {
-        // 백엔드에서 color 필드에 '점수(클릭수)'를 넣어서 보냈음
         const score = parseInt(p.color);
-
-        // 현재 화면 안에 있는 점만 그리기
         const latLng = new naver.maps.LatLng(p.lat, p.lng);
         if (bounds.hasLatLng(latLng)) {
             const pOffset = projection.fromCoordToOffset(latLng);
 
-            // 좌표 변환 (지도 좌표 -> 화면 픽셀 좌표)
-            const x = pOffset.x - projection.fromCoordToOffset(new naver.maps.LatLng(bounds.getNE().lat(), bounds.getSW().lng())).x;
-            const y = pOffset.y - projection.fromCoordToOffset(new naver.maps.LatLng(bounds.getNE().lat(), bounds.getSW().lng())).y;
-
-            // 좌표 보정 (기존 drawPixels 로직 참고)
-            const absoluteX = pOffset.x - projection.fromCoordToOffset(new naver.maps.LatLng(bounds.getNE().lat(), bounds.getSW().lng())).x;
-            // 위 계산식이 복잡하니, 기존 drawPixels에서 썼던 방식을 빌려와야 정확합니다.
-            // 간단하게: 현재 맵의 투영법을 이용해 화면상 위치를 잡습니다.
-
-            // [간단 버전] 화면상의 위치 계산
-            const mapSize = map.getSize();
-            const proj = map.getProjection();
-            const point = proj.fromCoordToOffset(latLng);
-            const offset = proj.fromCoordToOffset(map.getBounds().getSW()); // 기준점
-            // 네이버 지도 API 버전에 따라 offset 기준이 다를 수 있어,
-            // 가장 확실한 건 '현재 맵 div' 기준 상대 좌표를 구하는 것입니다.
-            // 하지만 script.js의 drawPixels와 동일한 로직을 써야 위치가 맞습니다.
-
-            // script.js 상단 drawPixels 로직 재사용:
             const tl = projection.fromCoordToOffset(new naver.maps.LatLng(bounds.getNE().lat(), bounds.getSW().lng()));
             const px = Math.floor(pOffset.x - tl.x);
             const py = Math.floor(pOffset.y - tl.y);
 
-            // 점수가 높을수록 더 크고 진하게
             const radius = Math.min(score * 2, 40) + 10;
 
-            previewCtx.beginPath();
-            previewCtx.arc(px, py, radius, 0, Math.PI * 2);
+            heatmapCtx.beginPath();
+            heatmapCtx.arc(px, py, radius, 0, Math.PI * 2);
 
-            // 색상: 점수가 높으면 흰색/노랑, 낮으면 빨강
-            if (score > 50) previewCtx.fillStyle = "rgba(255, 255, 255, 0.8)";
-            else if (score > 20) previewCtx.fillStyle = "rgba(255, 255, 0, 0.6)";
-            else previewCtx.fillStyle = "rgba(255, 0, 0, 0.4)";
+            if (score > 50) heatmapCtx.fillStyle = "rgba(255, 255, 255, 0.8)";
+            else if (score > 20) heatmapCtx.fillStyle = "rgba(255, 255, 0, 0.6)";
+            else heatmapCtx.fillStyle = "rgba(255, 0, 0, 0.4)";
 
-            previewCtx.fill();
+            heatmapCtx.fill();
         }
     });
 
-    // 필터 초기화 (다른 그림에 영향 안 주게)
-    previewCtx.filter = 'none';
-    previewCtx.globalCompositeOperation = 'source-over';
-
-    // 지도가 움직이면 다시 그려야 위치가 맞음 (이벤트 리스너는 이미 script.js에 있음)
+    heatmapCtx.filter = 'none';
+    heatmapCtx.globalCompositeOperation = 'source-over';
 }
 
-// 지도가 움직일 때 히트맵도 갱신 (기존 이벤트에 연결)
 naver.maps.Event.addListener(map, 'idle', () => {
     if(isHeatmapMode) loadHeatmap();
 });
