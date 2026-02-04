@@ -155,3 +155,20 @@ body { margin: 0; padding: 0; overflow: hidden; background-color: #1a1a1a; font-
     /* 모바일에서 채팅창 조정 */
     #ui-chat { width: 260px; height: 220px; bottom: 80px; left: 15px; font-size: 12px; }
 }
+#heatmapBtn {
+    width: 42px; height: 42px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #eee; font-size: 18px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; transition: all 0.2s;
+}
+
+/* 히트맵 켜졌을 때 스타일 (붉은색 네온 효과) */
+#heatmapBtn.active-heat {
+    background: rgba(255, 69, 0, 0.2);
+    border-color: #FF4500;
+    box-shadow: 0 0 15px rgba(255, 69, 0, 0.5);
+    transform: scale(1.1);
+}

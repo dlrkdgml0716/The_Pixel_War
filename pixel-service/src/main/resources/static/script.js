@@ -392,3 +392,104 @@ fetch('/api/user/me').then(res => res.ok ? res.json() : Promise.reject()).then(u
 }).catch(() => { isLoggedIn = false; document.getElementById('login-area').classList.remove('hidden'); document.getElementById('user-info').classList.add('hidden'); });
 
 setTimeout(resizeCanvas, 500);
+
+let isHeatmapMode = false;
+const heatmapBtn = document.getElementById('heatmapBtn');
+
+heatmapBtn.addEventListener('click', () => {
+    isHeatmapMode = !isHeatmapMode;
+
+    if (isHeatmapMode) {
+        heatmapBtn.classList.add('active-heat');
+        loadHeatmap(); // 데이터 가져오기
+    } else {
+        heatmapBtn.classList.remove('active-heat');
+        // 히트맵 끄면 미리보기 캔버스 지우기
+        previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+    }
+});
+
+function loadHeatmap() {
+    if (!isHeatmapMode) return;
+
+    // 1. 서버에 "핫한 좌표 500개 줘!" 요청
+    fetch('/api/pixels/hot')
+        .then(res => res.json())
+        .then(data => {
+            drawHeatmap(data);
+        })
+        .catch(console.error);
+}
+
+function drawHeatmap(hotPixels) {
+    if (!isHeatmapMode) return;
+
+    // 그리기 전에 캔버스 초기화
+    previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+
+    const projection = map.getProjection();
+    const bounds = map.getBounds();
+    const tlOffset = projection.fromCoordToOffset(bounds.getNE()); // 캔버스 기준점 계산용
+
+    // 블러 효과를 줘서 '열기(Heat)'처럼 보이게 함
+    previewCtx.filter = 'blur(8px)';
+    previewCtx.globalCompositeOperation = 'lighter'; // 색이 겹치면 더 밝아지게 (광원 효과)
+
+    hotPixels.forEach(p => {
+        // 백엔드에서 color 필드에 '점수(클릭수)'를 넣어서 보냈음
+        const score = parseInt(p.color);
+
+        // 현재 화면 안에 있는 점만 그리기
+        const latLng = new naver.maps.LatLng(p.lat, p.lng);
+        if (bounds.hasLatLng(latLng)) {
+            const pOffset = projection.fromCoordToOffset(latLng);
+
+            // 좌표 변환 (지도 좌표 -> 화면 픽셀 좌표)
+            const x = pOffset.x - projection.fromCoordToOffset(new naver.maps.LatLng(bounds.getNE().lat(), bounds.getSW().lng())).x;
+            const y = pOffset.y - projection.fromCoordToOffset(new naver.maps.LatLng(bounds.getNE().lat(), bounds.getSW().lng())).y;
+
+            // 좌표 보정 (기존 drawPixels 로직 참고)
+            const absoluteX = pOffset.x - projection.fromCoordToOffset(new naver.maps.LatLng(bounds.getNE().lat(), bounds.getSW().lng())).x;
+            // 위 계산식이 복잡하니, 기존 drawPixels에서 썼던 방식을 빌려와야 정확합니다.
+            // 간단하게: 현재 맵의 투영법을 이용해 화면상 위치를 잡습니다.
+
+            // [간단 버전] 화면상의 위치 계산
+            const mapSize = map.getSize();
+            const proj = map.getProjection();
+            const point = proj.fromCoordToOffset(latLng);
+            const offset = proj.fromCoordToOffset(map.getBounds().getSW()); // 기준점
+            // 네이버 지도 API 버전에 따라 offset 기준이 다를 수 있어,
+            // 가장 확실한 건 '현재 맵 div' 기준 상대 좌표를 구하는 것입니다.
+            // 하지만 script.js의 drawPixels와 동일한 로직을 써야 위치가 맞습니다.
+
+            // script.js 상단 drawPixels 로직 재사용:
+            const tl = projection.fromCoordToOffset(new naver.maps.LatLng(bounds.getNE().lat(), bounds.getSW().lng()));
+            const px = Math.floor(pOffset.x - tl.x);
+            const py = Math.floor(pOffset.y - tl.y);
+
+            // 점수가 높을수록 더 크고 진하게
+            const radius = Math.min(score * 2, 40) + 10;
+
+            previewCtx.beginPath();
+            previewCtx.arc(px, py, radius, 0, Math.PI * 2);
+
+            // 색상: 점수가 높으면 흰색/노랑, 낮으면 빨강
+            if (score > 50) previewCtx.fillStyle = "rgba(255, 255, 255, 0.8)";
+            else if (score > 20) previewCtx.fillStyle = "rgba(255, 255, 0, 0.6)";
+            else previewCtx.fillStyle = "rgba(255, 0, 0, 0.4)";
+
+            previewCtx.fill();
+        }
+    });
+
+    // 필터 초기화 (다른 그림에 영향 안 주게)
+    previewCtx.filter = 'none';
+    previewCtx.globalCompositeOperation = 'source-over';
+
+    // 지도가 움직이면 다시 그려야 위치가 맞음 (이벤트 리스너는 이미 script.js에 있음)
+}
+
+// 지도가 움직일 때 히트맵도 갱신 (기존 이벤트에 연결)
+naver.maps.Event.addListener(map, 'idle', () => {
+    if(isHeatmapMode) loadHeatmap();
+});

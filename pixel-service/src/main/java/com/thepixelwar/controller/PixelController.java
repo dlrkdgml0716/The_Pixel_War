@@ -3,6 +3,7 @@ package com.thepixelwar.controller;
 import com.thepixelwar.dto.PixelRequest;
 import com.thepixelwar.service.PixelService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -37,5 +38,9 @@ public class PixelController {
 
         // 2. 범위 정보가 있으면? -> 해당 부분만 잘라서 줍니다 (최적화!)
         return pixelService.getPixelsInBounds(minLat, maxLat, minLng, maxLng);
+    }
+    @GetMapping("/hot")
+    public ResponseEntity<List<PixelRequest>> getHotPixels() {
+        return ResponseEntity.ok(pixelService.getHotPixels());
     }
 }
