@@ -17,21 +17,24 @@ public class GuildEntity {
     private Long id;
 
     @Column(unique = true, nullable = false)
-    private String name; // 길드 이름
+    private String name;
 
-    private String description; // 길드 소개 (한줄평)
+    private String description;
 
+    // [신규] 길드장 식별자 (이 부분이 없어서 에러가 난 겁니다!)
     private String masterProviderId;
 
-    // 길드원 목록 (1:N 관계)
-    @OneToMany(mappedBy = "guild")
+    @OneToMany(mappedBy = "guild", cascade = CascadeType.ALL)
     private List<MemberEntity> members = new ArrayList<>();
 
     @Builder
-    public GuildEntity(String name, String description) {
+    public GuildEntity(String name, String description, String masterProviderId) {
         this.name = name;
         this.description = description;
+        this.masterProviderId = masterProviderId;
     }
+
+    // 길드장 변경 편의 메서드
     public void changeMaster(String newMasterProviderId) {
         this.masterProviderId = newMasterProviderId;
     }
