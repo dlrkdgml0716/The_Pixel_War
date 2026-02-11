@@ -21,6 +21,8 @@ public class GuildEntity {
 
     private String description; // 길드 소개 (한줄평)
 
+    private String masterProviderId;
+
     // 길드원 목록 (1:N 관계)
     @OneToMany(mappedBy = "guild")
     private List<MemberEntity> members = new ArrayList<>();
@@ -29,5 +31,8 @@ public class GuildEntity {
     public GuildEntity(String name, String description) {
         this.name = name;
         this.description = description;
+    }
+    public void changeMaster(String newMasterProviderId) {
+        this.masterProviderId = newMasterProviderId;
     }
 }

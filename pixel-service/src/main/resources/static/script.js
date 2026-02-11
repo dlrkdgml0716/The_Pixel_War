@@ -473,23 +473,24 @@ naver.maps.Event.addListener(map, 'idle', () => {
     if(isHeatmapMode) loadHeatmap();
 });
 
-// --- [추가] 🛡️ 길드 시스템 로직 ---
+// --- [수정] 🛡️ 길드 시스템 로직 ---
 const guildBtn = document.getElementById('guildBtn');
 const guildModal = document.getElementById('guild-modal');
 const closeGuildBtn = document.getElementById('closeGuildBtn');
 
-// 내 길드 ID 상태 저장용 변수
-let myGuildId = -1;
+// UI 요소들 (화면 전환용)
+const viewNoGuild = document.getElementById('view-no-guild');
+const viewHasGuild = document.getElementById('view-has-guild');
 
 // 모달 열기/닫기
 guildBtn.addEventListener('click', () => {
     if(!isLoggedIn) { alert("로그인이 필요합니다."); return; }
     guildModal.classList.remove('hidden');
-    loadGuildList(); // 열 때 목록 새로고침
+    checkMyGuildStatus(); // 열 때마다 내 길드 상태 확인
 });
 closeGuildBtn.addEventListener('click', () => guildModal.classList.add('hidden'));
 
-// 탭 전환 함수
+// 탭 전환 (view-no-guild 내부에서 동작)
 window.showTab = function(tabName) {
     document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
     document.querySelectorAll('.tab-content').forEach(content => content.classList.add('hidden'));
@@ -504,67 +505,73 @@ window.showTab = function(tabName) {
     }
 };
 
-// 1. 길드 목록 불러오기 (내 상태에 따라 버튼 다르게 표시)
+// [핵심] 내 길드 상태 확인 및 화면 전환
+function checkMyGuildStatus() {
+    fetch('/api/guilds/my')
+        .then(res => res.json())
+        .then(data => {
+            if (data.hasGuild === false) {
+                // 길드 없음 -> 목록/생성 화면 보여주기
+                viewNoGuild.classList.remove('hidden');
+                viewHasGuild.classList.add('hidden');
+                loadGuildList(); // 목록 로드
+            } else {
+                // 길드 있음 -> 상세 정보 화면 보여주기
+                viewNoGuild.classList.add('hidden');
+                viewHasGuild.classList.remove('hidden');
+
+                // 상세 정보 채우기
+                document.getElementById('my-guild-name').innerText = data.name;
+                document.getElementById('my-guild-desc').innerText = data.description;
+                document.getElementById('my-guild-master').innerText = data.masterName + (data.isMaster ? " (나)" : "");
+                document.getElementById('my-guild-count').innerText = `${data.memberCount} / ${data.maxMembers}`;
+            }
+        })
+        .catch(console.error);
+}
+
+// 길드 목록 불러오기 (인원수 표시 및 가입 버튼)
 function loadGuildList() {
     const container = document.getElementById('guild-list-container');
     container.innerHTML = '<div style="text-align:center; color:#888; margin-top:20px;">로딩 중...</div>';
 
-    // [중요] 1단계: 내 길드 정보 먼저 확인 (/api/guilds/my)
-    fetch('/api/guilds/my')
-    .then(res => res.json())
-    .then(myInfo => {
-        myGuildId = myInfo.guildId; // 내 길드 ID 업데이트 (-1이면 없음)
-
-        // 2단계: 전체 길드 목록 가져오기 (/api/guilds)
-        return fetch('/api/guilds');
-    })
-    .then(res => res.json())
-    .then(data => {
-        container.innerHTML = '';
-        if (data.length === 0) {
-            container.innerHTML = '<div style="text-align:center; color:#666; margin-top:50px;">아직 창설된 길드가 없습니다.<br>첫 번째 길드장이 되어보세요! 👑</div>';
-            return;
-        }
-
-        data.forEach(g => {
-            const div = document.createElement('div');
-            div.className = 'guild-item';
-
-            // 🔥 버튼 로직 분기점 (핵심)
-            let btnHtml = '';
-
-            if (myGuildId === g.id) {
-                // Case A: 내가 속한 길드 -> [탈퇴] 버튼
-                btnHtml = `<button class="btn-leave" onclick="leaveGuild()">탈퇴</button>`;
-            } else if (myGuildId !== -1) {
-                // Case B: 남의 길드인데, 난 이미 길드가 있음 -> [가입 불가]
-                btnHtml = `<button class="btn-join disabled" disabled>가입 불가</button>`;
-            } else {
-                // Case C: 길드 없음 -> [가입] 버튼
-                btnHtml = `<button class="btn-join" onclick="joinGuild(${g.id})">가입</button>`;
+    fetch('/api/guilds')
+        .then(res => res.json())
+        .then(data => {
+            container.innerHTML = '';
+            if (data.length === 0) {
+                container.innerHTML = '<div style="text-align:center; color:#666; margin-top:50px;">생성된 길드가 없습니다.<br>첫 번째 길드장이 되어보세요! 👑</div>';
+                return;
             }
+            data.forEach(g => {
+                const div = document.createElement('div');
+                div.className = 'guild-item';
 
-            div.innerHTML = `
-                <div class="g-info">
-                    <span class="g-name">${g.name}</span>
-                    <span class="g-desc">${g.description}</span>
-                </div>
-                ${btnHtml}
-            `;
-            container.appendChild(div);
-        });
-    })
-    .catch(err => {
-        console.error(err);
-        container.innerHTML = '<div style="color:#ff6b6b; text-align:center;">목록을 불러오지 못했습니다.</div>';
-    });
+                // 꽉 찼는지 확인
+                const isFull = g.memberCount >= g.maxMembers;
+                const btnHtml = isFull
+                    ? `<button class="btn-join disabled" disabled>만원</button>`
+                    : `<button class="btn-join" onclick="joinGuild(${g.id})">가입</button>`;
+
+                div.innerHTML = `
+                    <div class="g-info">
+                        <span class="g-name">${g.name}</span>
+                        <div style="font-size:11px; color:#aaa;">
+                            <span>${g.description}</span> • <span style="color:#4caf50;">${g.memberCount}/${g.maxMembers}명</span>
+                        </div>
+                    </div>
+                    ${btnHtml}
+                `;
+                container.appendChild(div);
+            });
+        })
+        .catch(console.error);
 }
 
-// 2. 길드 생성하기 (POST)
+// 길드 생성하기
 document.getElementById('createGuildActionBtn').addEventListener('click', () => {
     const name = document.getElementById('guildNameInput').value;
     const desc = document.getElementById('guildDescInput').value;
-
     if (!name.trim()) { alert("길드 이름을 입력해주세요."); return; }
 
     fetch('/api/guilds', {
@@ -578,20 +585,17 @@ document.getElementById('createGuildActionBtn').addEventListener('click', () => 
             alert("길드가 창설되었습니다! 🎉");
             document.getElementById('guildNameInput').value = '';
             document.getElementById('guildDescInput').value = '';
-            showTab('list'); // 목록 탭으로 이동해서 확인
+            checkMyGuildStatus(); // 내 정보 화면으로 전환
         } else if (msg === 'ALREADY_HAS_GUILD') {
-            alert("이미 가입된 길드가 있습니다. 생성하려면 탈퇴 먼저 하세요.");
+            alert("이미 가입된 길드가 있습니다.");
         } else {
             alert("생성 실패: " + msg);
         }
     })
-    .catch(err => {
-        alert("서버 오류가 발생했습니다.");
-        console.error(err);
-    });
+    .catch(console.error);
 });
 
-// 3. 길드 가입하기 (POST)
+// 길드 가입하기
 window.joinGuild = function(guildId) {
     if (!confirm("정말 이 길드에 가입하시겠습니까?")) return;
 
@@ -599,33 +603,32 @@ window.joinGuild = function(guildId) {
     .then(res => res.text())
     .then(msg => {
         if (msg === 'SUCCESS') {
-            alert("가입되었습니다! 이제 팀을 위해 싸우세요! ⚔️");
-            loadGuildList(); // 목록 새로고침 (버튼 상태 변경 위해)
+            alert("가입되었습니다! ⚔️");
+            checkMyGuildStatus(); // 내 정보 화면으로 전환
+        } else if (msg === 'GUILD_FULL') {
+            alert("길드 정원이 꽉 찼습니다.");
         } else if (msg === 'ALREADY_HAS_GUILD') {
-            alert("이미 가입한 길드가 있습니다. 탈퇴 후 시도하세요.");
+            alert("이미 가입한 길드가 있습니다.");
         } else {
             alert(msg);
         }
     })
-    .catch(err => {
-        alert("가입 처리 중 오류가 발생했습니다.");
-        console.error(err);
-    });
+    .catch(console.error);
 };
 
-// [신규] 4. 길드 탈퇴하기 (POST)
+// 길드 탈퇴하기
 window.leaveGuild = function() {
-    if (!confirm("정말 길드를 탈퇴하시겠습니까?")) return;
+    if (!confirm("정말 탈퇴하시겠습니까?\n(길드장이면 다음 멤버에게 권한이 위임되며,\n마지막 멤버일 경우 길드가 삭제됩니다.)")) return;
 
     fetch('/api/guilds/leave', { method: 'POST' })
     .then(res => res.text())
     .then(msg => {
-        if (msg === 'SUCCESS') {
-            alert("탈퇴했습니다. 이제 새로운 길드를 찾거나 창설할 수 있습니다.");
-            loadGuildList(); // 목록 새로고침 (모든 버튼이 다시 '가입'으로 바뀜)
+        if (msg === 'SUCCESS' || msg === 'GUILD_DELETED') {
+            alert(msg === 'GUILD_DELETED' ? "마지막 멤버가 떠나 길드가 삭제되었습니다." : "탈퇴했습니다.");
+            checkMyGuildStatus(); // 목록 화면으로 전환
         } else {
             alert("오류: " + msg);
         }
     })
-    .catch(err => console.error(err));
+    .catch(console.error);
 };
