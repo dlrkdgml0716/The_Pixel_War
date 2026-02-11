@@ -227,3 +227,13 @@ body { margin: 0; padding: 0; overflow: hidden; background-color: #1a1a1a; font-
     box-shadow: 0 4px 15px rgba(255, 69, 0, 0.3);
 }
 .btn-full:hover { filter: brightness(1.1); }
+
+.btn-leave {
+    background: #ff4757; border: none; color: white;
+    padding: 6px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: bold;
+}
+.btn-leave:hover { opacity: 0.8; }
+
+.btn-join.disabled {
+    background: #555; color: #aaa; cursor: not-allowed;
+}

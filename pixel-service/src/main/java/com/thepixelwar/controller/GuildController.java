@@ -24,7 +24,6 @@ public class GuildController {
                                               @AuthenticationPrincipal OAuth2User principal) {
         if (principal == null) return ResponseEntity.status(401).body("로그인이 필요합니다.");
 
-        // 카카오 로그인의 경우 attributes에서 id와 properties를 가져옴
         String providerId = principal.getName();
         Map<String, Object> properties = (Map<String, Object>) principal.getAttributes().get("properties");
         String nickname = (String) properties.get("nickname");
@@ -45,6 +44,24 @@ public class GuildController {
 
         String result = guildService.joinGuild(guildId, providerId, nickname);
         return ResponseEntity.ok(result);
+    }
+
+    // 길드 탈퇴 (POST /api/guilds/leave)
+    @PostMapping("/leave")
+    public ResponseEntity<String> leaveGuild(@AuthenticationPrincipal OAuth2User principal) {
+        if (principal == null) return ResponseEntity.status(401).body("로그인이 필요합니다.");
+        String result = guildService.leaveGuild(principal.getName());
+        return ResponseEntity.ok(result);
+    }
+
+    // 내 길드 정보 조회 (GET /api/guilds/my)
+    @GetMapping("/my")
+    public ResponseEntity<Map<String, Object>> getMyGuildInfo(@AuthenticationPrincipal OAuth2User principal) {
+        if (principal == null) return ResponseEntity.status(401).build();
+
+        Long myGuildId = guildService.getMyGuildId(principal.getName());
+        // 길드가 없으면 -1 반환 (null은 JSON에서 빠질 수 있으므로)
+        return ResponseEntity.ok(Map.of("guildId", myGuildId != null ? myGuildId : -1L));
     }
 
     // 길드 목록 조회 (GET /api/guilds)
