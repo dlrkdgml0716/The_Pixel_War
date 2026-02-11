@@ -154,3 +154,76 @@ body { margin: 0; padding: 0; overflow: hidden; background-color: #1a1a1a; font-
     box-shadow: 0 0 15px rgba(255, 69, 0, 0.5);
     transform: scale(1.1);
 }
+/* 길드 버튼 (하단바) */
+#guildBtn {
+    width: 42px; height: 42px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #eee; font-size: 18px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; transition: all 0.2s;
+}
+#guildBtn:hover { background: rgba(255, 215, 0, 0.2); border-color: #FFD700; transform: scale(1.1); box-shadow: 0 0 10px rgba(255, 215, 0, 0.3); }
+
+/* 길드 팝업창 (모달) */
+#guild-modal {
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 340px; height: 420px;
+    z-index: 2000; /* 채팅창보다 위에 */
+    display: flex; flex-direction: column;
+    padding: 0; overflow: hidden;
+}
+
+.modal-header {
+    padding: 15px; border-bottom: 1px solid rgba(255,255,255,0.1);
+    display: flex; justify-content: space-between; align-items: center;
+    font-weight: bold; background: rgba(0,0,0,0.2); color: var(--gold);
+}
+#closeGuildBtn { background: none; border: none; color: #aaa; cursor: pointer; font-size: 16px; transition: color 0.2s; }
+#closeGuildBtn:hover { color: #fff; }
+
+.guild-tabs { display: flex; border-bottom: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.1); }
+.tab-btn {
+    flex: 1; background: none; border: none; padding: 12px;
+    color: #888; cursor: pointer; font-size: 13px; transition: 0.2s; font-weight: bold;
+}
+.tab-btn:hover { color: #ccc; }
+.tab-btn.active { color: #fff; border-bottom: 2px solid var(--accent-color); background: rgba(255,255,255,0.05); }
+
+.tab-content { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+.hidden { display: none !important; }
+
+/* 길드 리스트 아이템 스타일 */
+.guild-item {
+    background: rgba(255,255,255,0.05); border-radius: 8px; padding: 12px;
+    border: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: space-between; align-items: center;
+    transition: background 0.2s;
+}
+.guild-item:hover { background: rgba(255,255,255,0.1); }
+
+.g-info { display: flex; flex-direction: column; gap: 4px; }
+.g-name { font-weight: bold; color: var(--gold); font-size: 14px; }
+.g-desc { font-size: 11px; color: #bbb; }
+
+.btn-join {
+    background: var(--accent-color); border: none; color: white;
+    padding: 6px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: bold;
+}
+.btn-join:hover { opacity: 0.8; transform: translateY(-1px); }
+
+/* 입력 폼 스타일 */
+#guildNameInput, #guildDescInput {
+    background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.2);
+    padding: 12px; border-radius: 8px; color: white; outline: none; margin-bottom: 10px; width: 100%; box-sizing: border-box;
+}
+#guildNameInput:focus, #guildDescInput:focus { border-color: var(--accent-color); }
+
+.btn-full {
+    background: linear-gradient(135deg, var(--primary-color), #d50000);
+    border: none; color: white; width: 100%;
+    padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer; margin-top: 10px;
+    box-shadow: 0 4px 15px rgba(255, 69, 0, 0.3);
+}
+.btn-full:hover { filter: brightness(1.1); }

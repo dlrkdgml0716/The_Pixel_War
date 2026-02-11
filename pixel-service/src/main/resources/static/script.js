@@ -472,3 +472,112 @@ function drawHeatmap(hotPixels) {
 naver.maps.Event.addListener(map, 'idle', () => {
     if(isHeatmapMode) loadHeatmap();
 });
+
+// --- [추가] 🛡️ 길드 시스템 로직 ---
+const guildBtn = document.getElementById('guildBtn');
+const guildModal = document.getElementById('guild-modal');
+const closeGuildBtn = document.getElementById('closeGuildBtn');
+
+// 모달 열기/닫기
+guildBtn.addEventListener('click', () => {
+    if(!isLoggedIn) { alert("로그인이 필요합니다."); return; }
+    guildModal.classList.remove('hidden');
+    loadGuildList(); // 열 때 목록 새로고침
+});
+closeGuildBtn.addEventListener('click', () => guildModal.classList.add('hidden'));
+
+// 탭 전환 함수 (window 객체에 붙여서 HTML에서 호출 가능하게 함)
+window.showTab = function(tabName) {
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(content => content.classList.add('hidden'));
+
+    if (tabName === 'list') {
+        document.getElementById('tab-guild-list').classList.remove('hidden');
+        document.querySelector('.tab-btn:nth-child(1)').classList.add('active');
+        loadGuildList();
+    } else {
+        document.getElementById('tab-guild-create').classList.remove('hidden');
+        document.querySelector('.tab-btn:nth-child(2)').classList.add('active');
+    }
+};
+
+// 1. 길드 목록 불러오기 (GET)
+function loadGuildList() {
+    const container = document.getElementById('guild-list-container');
+    container.innerHTML = '<div style="text-align:center; color:#888; margin-top:20px;">로딩 중...</div>';
+
+    fetch('/api/guilds')
+        .then(res => res.json())
+        .then(data => {
+            container.innerHTML = '';
+            if (data.length === 0) {
+                container.innerHTML = '<div style="text-align:center; color:#666; margin-top:50px;">아직 창설된 길드가 없습니다.<br>첫 번째 길드장이 되어보세요! 👑</div>';
+                return;
+            }
+            data.forEach(g => {
+                const div = document.createElement('div');
+                div.className = 'guild-item';
+                div.innerHTML = `
+                    <div class="g-info">
+                        <span class="g-name">${g.name}</span>
+                        <span class="g-desc">${g.description}</span>
+                    </div>
+                    <button class="btn-join" onclick="joinGuild(${g.id})">가입</button>
+                `;
+                container.appendChild(div);
+            });
+        })
+        .catch(err => {
+            console.error(err);
+            container.innerHTML = '<div style="color:#ff6b6b; text-align:center;">목록을 불러오지 못했습니다.</div>';
+        });
+}
+
+// 2. 길드 생성하기 (POST)
+document.getElementById('createGuildActionBtn').addEventListener('click', () => {
+    const name = document.getElementById('guildNameInput').value;
+    const desc = document.getElementById('guildDescInput').value;
+
+    if (!name.trim()) { alert("길드 이름을 입력해주세요."); return; }
+
+    fetch('/api/guilds', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name, description: desc })
+    })
+    .then(res => res.text())
+    .then(msg => {
+        if (msg === 'SUCCESS') {
+            alert("길드가 창설되었습니다! 🎉");
+            document.getElementById('guildNameInput').value = '';
+            document.getElementById('guildDescInput').value = '';
+            showTab('list'); // 목록 탭으로 이동해서 확인
+        } else {
+            alert("생성 실패: " + msg);
+        }
+    })
+    .catch(err => {
+        alert("서버 오류가 발생했습니다.");
+        console.error(err);
+    });
+});
+
+// 3. 길드 가입하기 (POST)
+window.joinGuild = function(guildId) {
+    if (!confirm("정말 이 길드에 가입하시겠습니까?")) return;
+
+    fetch(`/api/guilds/${guildId}/join`, { method: 'POST' })
+    .then(res => res.text())
+    .then(msg => {
+        if (msg === 'SUCCESS') {
+            alert("가입되었습니다! 이제 팀을 위해 싸우세요! ⚔️");
+            guildModal.classList.add('hidden'); // 가입 성공 시 창 닫기
+        } else {
+            alert(msg); // "이미 가입된 길드입니다" 등
+        }
+    })
+    .catch(err => {
+        alert("가입 처리 중 오류가 발생했습니다.");
+        console.error(err);
+    });
+};

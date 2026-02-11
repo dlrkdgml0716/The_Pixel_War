@@ -68,6 +68,8 @@
         <div class="divider"></div>
         <button id="heatmapBtn" title="히트맵 모드">🔥</button>
         <div class="divider"></div>
+        <button id="guildBtn" title="길드(팀) 관리">🛡️</button>
+        <div class="divider"></div>
         <button id="myLocBtn">내 위치</button>
     </div>
 
@@ -76,7 +78,32 @@
         <div id="mini-map-view"></div>
     </div>
 </div>
+<div id="guild-modal" class="glass-panel hidden">
+    <div class="modal-header">
+        <span>🛡️ Guild System</span>
+        <button id="closeGuildBtn">✖</button>
+    </div>
 
+    <div class="guild-tabs">
+        <button class="tab-btn active" onclick="showTab('list')">길드 목록</button>
+        <button class="tab-btn" onclick="showTab('create')">길드 생성</button>
+    </div>
+
+    <div id="tab-guild-list" class="tab-content">
+        <div id="guild-list-container">
+            <div style="text-align:center; color:#888;">로딩 중...</div>
+        </div>
+    </div>
+
+    <div id="tab-guild-create" class="tab-content hidden">
+        <div style="text-align:center; margin-bottom:15px; font-size:12px; color:#aaa;">
+            새로운 세력을 창설하고 대륙을 정복하세요!
+        </div>
+        <input type="text" id="guildNameInput" placeholder="길드 이름 (필수, 10자 이내)" maxlength="10">
+        <input type="text" id="guildDescInput" placeholder="한줄 소개 (선택, 30자 이내)" maxlength="30">
+        <button id="createGuildActionBtn" class="btn-full">길드 창설하기</button>
+    </div>
+</div>
 <script src="script.js"></script>
 </body>
 </html>
