@@ -271,3 +271,20 @@ input:checked + .slider {
 input:checked + .slider:before {
   transform: translateX(20px);
 }
+#view-has-guild {
+    overflow-y: auto;          /* 내용이 길어지면 세로 스크롤 생성 */
+    max-height: calc(100% - 50px); /* 모달 전체 높이에서 헤더 높이(약 50px)를 뺀 만큼만 차지하도록 제한 */
+    padding-bottom: 30px;      /* 맨 아래 텍스트가 바닥에 딱 붙지 않도록 여백 추가 */
+
+    /* 스크롤바 디자인 (웹킷 브라우저 용) */
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.3) transparent;
+}
+
+#view-has-guild::-webkit-scrollbar {
+    width: 6px;
+}
+#view-has-guild::-webkit-scrollbar-thumb {
+    background-color: rgba(255,255,255,0.3);
+    border-radius: 4px;
+}

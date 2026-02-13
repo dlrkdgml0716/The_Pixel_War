@@ -368,12 +368,12 @@ const mapDiv = document.getElementById('map');
 modeBtn.addEventListener('click', () => {
     isAttackMode = !isAttackMode;
     if (isAttackMode) {
-        modeBtn.innerHTML = "⚔️공격 모드";
+        modeBtn.innerHTML = "⚔️ 공격 모드";
         modeBtn.className = "btn-main-action mode-attack";
         map.setOptions({ draggable: false });
         mapDiv.classList.add('attack-cursor');
     } else {
-        modeBtn.innerHTML = "📍이동 모드";
+        modeBtn.innerHTML = "📍 이동 모드";
         modeBtn.className = "btn-main-action mode-move";
         if(isEdgeScrollEnabled) {
             map.setOptions({ draggable: false });
@@ -540,7 +540,10 @@ function checkMyGuildStatus() {
                     guildBlueprint.lng = data.blueprintLng;
 
                     const img = document.getElementById('blueprintImage');
-                    img.src = data.blueprintUrl;
+
+                    // 🔥 [수정됨] wsrv.nl 프록시를 사용하여 CORS 에러를 막고, 너비(w)를 100px로 줄입니다!
+                    img.src = `https://wsrv.nl/?url=${encodeURIComponent(data.blueprintUrl)}&w=100`;
+
                     img.onload = () => {
                         guildBlueprint.img = img;
                         scheduleDraw(); // 이미지 로드 완료 시 화면 갱신
