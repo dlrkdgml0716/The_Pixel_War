@@ -21,8 +21,13 @@ public class GuildEntity {
 
     private String description;
 
-    // [신규] 길드장 식별자 (이 부분이 없어서 에러가 난 겁니다!)
     private String masterProviderId;
+
+    // 🗺️ [신규] 청사진(오버레이) 정보
+    @Column(length = 2000) // URL이 길 수 있으므로 넉넉하게
+    private String blueprintUrl;
+    private Double blueprintLat;
+    private Double blueprintLng;
 
     @OneToMany(mappedBy = "guild", cascade = CascadeType.ALL)
     private List<MemberEntity> members = new ArrayList<>();
@@ -34,8 +39,14 @@ public class GuildEntity {
         this.masterProviderId = masterProviderId;
     }
 
-    // 길드장 변경 편의 메서드
     public void changeMaster(String newMasterProviderId) {
         this.masterProviderId = newMasterProviderId;
+    }
+
+    // 🗺️ [신규] 청사진 업데이트 메서드
+    public void updateBlueprint(String url, Double lat, Double lng) {
+        this.blueprintUrl = url;
+        this.blueprintLat = lat;
+        this.blueprintLng = lng;
     }
 }

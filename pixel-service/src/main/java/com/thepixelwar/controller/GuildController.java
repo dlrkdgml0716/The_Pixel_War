@@ -40,7 +40,21 @@ public class GuildController {
         return ResponseEntity.ok(guildService.leaveGuild(principal.getName()));
     }
 
-    // [수정] 내 길드 상세 정보 반환
+    // 🗺️ [신규] 청사진 업데이트 API
+    @PostMapping("/blueprint")
+    public ResponseEntity<String> updateBlueprint(@RequestBody Map<String, Object> body,
+                                                  @AuthenticationPrincipal OAuth2User principal) {
+        if (principal == null) return ResponseEntity.status(401).body("로그인 필요");
+
+        String url = (String) body.get("url");
+        // JSON 숫자는 Double로 바로 안 올 수도 있어서 안전하게 변환
+        Double lat = Double.valueOf(body.get("lat").toString());
+        Double lng = Double.valueOf(body.get("lng").toString());
+
+        String result = guildService.updateBlueprint(principal.getName(), url, lat, lng);
+        return ResponseEntity.ok(result);
+    }
+
     @GetMapping("/my")
     public ResponseEntity<Map<String, Object>> getMyGuildInfo(@AuthenticationPrincipal OAuth2User principal) {
         if (principal == null) return ResponseEntity.status(401).build();
@@ -48,7 +62,7 @@ public class GuildController {
         if (detail == null) {
             return ResponseEntity.ok(Map.of("hasGuild", false));
         } else {
-            return ResponseEntity.ok(detail); // hasGuild 키 없이 데이터 자체가 있으면 true 취급
+            return ResponseEntity.ok(detail);
         }
     }
 

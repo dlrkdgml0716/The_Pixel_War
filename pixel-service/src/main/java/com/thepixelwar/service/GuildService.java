@@ -22,20 +22,17 @@ public class GuildService {
     private final GuildRepository guildRepository;
     private final MemberRepository memberRepository;
 
-    private static final int MAX_MEMBERS = 30; // 최대 인원 제한
+    private static final int MAX_MEMBERS = 30;
 
     // 1. 길드 생성
     public String createGuild(GuildCreateRequest request, String providerId, String nickname) {
         if (guildRepository.existsByName(request.name())) {
             return "이미 존재하는 길드 이름입니다.";
         }
-
         MemberEntity member = getOrCreateMember(providerId, nickname);
         if (member.getGuild() != null) return "ALREADY_HAS_GUILD";
 
-        // 길드 생성 (생성자를 마스터로 지정)
         GuildEntity guild = guildRepository.save(new GuildEntity(request.name(), request.description(), providerId));
-
         member.joinGuild(guild);
         return "SUCCESS";
     }
@@ -48,16 +45,13 @@ public class GuildService {
         GuildEntity guild = guildRepository.findById(guildId)
                 .orElseThrow(() -> new IllegalArgumentException("길드가 없습니다."));
 
-        // [신규] 인원 제한 체크
-        if (guild.getMembers().size() >= MAX_MEMBERS) {
-            return "GUILD_FULL";
-        }
+        if (guild.getMembers().size() >= MAX_MEMBERS) return "GUILD_FULL";
 
         member.joinGuild(guild);
         return "SUCCESS";
     }
 
-    // 3. 길드 탈퇴 (자동 삭제 및 승계 로직 포함)
+    // 3. 길드 탈퇴
     public String leaveGuild(String providerId) {
         MemberEntity member = memberRepository.findByProviderId(providerId)
                 .orElseThrow(() -> new IllegalArgumentException("유저가 없습니다."));
@@ -65,38 +59,47 @@ public class GuildService {
         GuildEntity guild = member.getGuild();
         if (guild == null) return "NO_GUILD";
 
-        // 1. 멤버 탈퇴 처리
         member.joinGuild(null);
-        memberRepository.save(member); // DB 반영
+        memberRepository.save(member);
 
-        // 2. 남은 멤버 확인
         List<MemberEntity> remainingMembers = memberRepository.findAll().stream()
                 .filter(m -> guild.equals(m.getGuild()))
                 .collect(Collectors.toList());
 
         if (remainingMembers.isEmpty()) {
-            // A. 남은 사람이 없으면 -> 길드 폭파 💥
             guildRepository.delete(guild);
             return "GUILD_DELETED";
         } else {
-            // B. 사람이 남았는데, 나간 사람이 '길드장'이었다면? -> 승계 👑
             if (providerId.equals(guild.getMasterProviderId())) {
-                // 가장 오래된 멤버(ID가 작은 순)에게 양도
                 remainingMembers.sort(Comparator.comparing(MemberEntity::getId));
-                MemberEntity newMaster = remainingMembers.get(0);
-                guild.changeMaster(newMaster.getProviderId());
+                guild.changeMaster(remainingMembers.get(0).getProviderId());
             }
             return "SUCCESS";
         }
     }
 
-    // 4. 내 길드 상세 정보 조회 (UI 개편용)
+    // 🗺️ [신규] 청사진 업데이트 (길드장 전용)
+    public String updateBlueprint(String providerId, String url, Double lat, Double lng) {
+        MemberEntity member = memberRepository.findByProviderId(providerId)
+                .orElseThrow(() -> new IllegalArgumentException("유저 없음"));
+
+        GuildEntity guild = member.getGuild();
+        if (guild == null) return "NO_GUILD";
+
+        // 길드장 권한 체크
+        if (!guild.getMasterProviderId().equals(providerId)) {
+            return "NOT_MASTER";
+        }
+
+        guild.updateBlueprint(url, lat, lng);
+        return "SUCCESS";
+    }
+
+    // 4. 내 길드 상세 정보 조회 (청사진 정보 추가됨)
     @Transactional(readOnly = true)
     public Map<String, Object> getMyGuildDetail(String providerId) {
         MemberEntity member = memberRepository.findByProviderId(providerId).orElse(null);
-        if (member == null || member.getGuild() == null) {
-            return null; // 길드 없음
-        }
+        if (member == null || member.getGuild() == null) return null;
 
         GuildEntity guild = member.getGuild();
         MemberEntity master = memberRepository.findByProviderId(guild.getMasterProviderId()).orElse(null);
@@ -109,11 +112,15 @@ public class GuildService {
                 "masterName", masterName,
                 "memberCount", guild.getMembers().size(),
                 "maxMembers", MAX_MEMBERS,
-                "isMaster", providerId.equals(guild.getMasterProviderId()) // 내가 길드장인지 여부
+                "isMaster", providerId.equals(guild.getMasterProviderId()),
+                // 👇 청사진 정보 추가
+                "blueprintUrl", guild.getBlueprintUrl() == null ? "" : guild.getBlueprintUrl(),
+                "blueprintLat", guild.getBlueprintLat() == null ? 0.0 : guild.getBlueprintLat(),
+                "blueprintLng", guild.getBlueprintLng() == null ? 0.0 : guild.getBlueprintLng()
         );
     }
 
-    // 5. 전체 길드 목록 (인원수 포함)
+    // 5. 전체 길드 목록
     @Transactional(readOnly = true)
     public List<Map<String, Object>> getAllGuilds() {
         return guildRepository.findAll().stream()
@@ -125,6 +132,13 @@ public class GuildService {
                         "maxMembers", MAX_MEMBERS
                 ))
                 .toList();
+    }
+
+    public Long getMyGuildId(String providerId) {
+        return memberRepository.findByProviderId(providerId)
+                .map(MemberEntity::getGuild)
+                .map(GuildEntity::getId)
+                .orElse(null);
     }
 
     private MemberEntity getOrCreateMember(String providerId, String nickname) {
