@@ -30,6 +30,7 @@ let bpTempScale = 1;
 let editLat = 0;
 let editLng = 0;
 let isDraggingBp = false;
+let dragOffset = { lat: 0, lng: 0 };
 
 // --- 지도 초기화 ---
 const map = new naver.maps.Map('map', {
@@ -158,8 +159,8 @@ function drawPixels() {
     const centerOffset = projection.fromCoordToOffset(center);
     const nextGridOffset = projection.fromCoordToOffset(new naver.maps.LatLng(center.lat() + GRID_SIZE, center.lng() + GRID_SIZE));
 
-    const cellW = Math.ceil(Math.abs(nextGridOffset.x - centerOffset.x));
-    const cellH = Math.ceil(Math.abs(nextGridOffset.y - centerOffset.y));
+    const cellW = Math.abs(nextGridOffset.x - centerOffset.x);
+    const cellH = Math.abs(nextGridOffset.y - centerOffset.y);
 
     const tlOffset = projection.fromCoordToOffset(new naver.maps.LatLng(bounds.getNE().lat(), bounds.getSW().lng()));
 
@@ -184,30 +185,19 @@ function drawPixels() {
     }
 
     if (bp && bp.complete) {
-        const iw = bp.naturalWidth;
-        const ih = bp.naturalHeight;
+        // 1:1 매칭 핵심: 이미지 가로픽셀수 * 지도 한 칸 픽셀 크기 * 정수배율
+        const imgW = bp.naturalWidth * cellW * targetScale;
+        const imgH = bp.naturalHeight * cellH * targetScale;
 
-        const imgW = iw * cellW * (targetScale * 0.5);
-        const imgH = ih * cellH * (targetScale * 0.5);
-
-        const startLat = targetLat + (GRID_SIZE * (ih * targetScale * 0.5) / 2);
-        const startLng = targetLng - (GRID_SIZE * (iw * targetScale * 0.5) / 2);
-
-        const startLatLng = new naver.maps.LatLng(startLat, startLng);
+        // 좌상단 격자 시작점에 정확히 맞춤
+        const startLatLng = new naver.maps.LatLng(targetLat + GRID_SIZE, targetLng);
         const startOffset = projection.fromCoordToOffset(startLatLng);
-
-        const x = Math.floor(startOffset.x - tlOffset.x);
-        const y = Math.floor(startOffset.y - tlOffset.y);
+        const x = startOffset.x - tlOffset.x;
+        const y = startOffset.y - tlOffset.y;
 
         ctx.save();
-        ctx.globalAlpha = bpEditMode ? 0.6 : 0.3;
-        ctx.drawImage(bp, x, y, imgW, imgH);
-
-        if (bpEditMode) {
-            ctx.strokeStyle = "#00FF00";
-            ctx.lineWidth = 2;
-            ctx.strokeRect(x, y, imgW, imgH);
-        }
+        ctx.globalAlpha = bpEditMode ? 0.7 : 0.4;
+        ctx.drawImage(bp, Math.floor(x), Math.floor(y), Math.ceil(imgW), Math.ceil(imgH));
         ctx.restore();
     }
 
@@ -227,17 +217,25 @@ function drawPixels() {
 canvas.addEventListener('mousedown', (e) => {
     if (!bpEditMode) return;
     isDraggingBp = true;
+    const rect = canvas.getBoundingClientRect();
+    const coord = map.getProjection().fromOffsetToCoord(new naver.maps.Point(e.clientX - rect.left, e.clientY - rect.top));
+
+    // 클릭한 지점과 도안 좌표의 차이(오프셋)를 저장하여 '끌기' 구현
+    dragOffset.lat = editLat - coord.lat();
+    dragOffset.lng = editLng - coord.lng();
+    map.setOptions({ draggable: false }); // 드래그 중 지도 이동 방지
 });
 
 canvas.addEventListener('mousemove', (e) => {
     if (bpEditMode && isDraggingBp) {
         const rect = canvas.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
-        const projection = map.getProjection();
-        const coord = projection.fromOffsetToCoord(new naver.maps.Point(x, y));
-        editLat = Math.floor((coord.lat() + EPSILON) / GRID_SIZE) * GRID_SIZE;
-        editLng = Math.floor((coord.lng() + EPSILON) / GRID_SIZE) * GRID_SIZE;
+        const coord = map.getProjection().fromOffsetToCoord(new naver.maps.Point(e.clientX - rect.left, e.clientY - rect.top));
+
+        // 오프셋을 유지하며 이동하고, 결과값을 GRID_SIZE 단위로 반올림(Snap)
+        const newLat = coord.lat() + dragOffset.lat;
+        const newLng = coord.lng() + dragOffset.lng;
+        editLat = Math.round(newLat / GRID_SIZE) * GRID_SIZE;
+        editLng = Math.round(newLng / GRID_SIZE) * GRID_SIZE;
         scheduleDraw();
     }
 });
