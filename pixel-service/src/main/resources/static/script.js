@@ -29,6 +29,8 @@ let bpTempImg = new Image();
 let bpTempScale = 1;
 let editLat = 0;
 let editLng = 0;
+let currentBpLat = 0;
+let currentBpLng = 0;
 let isDraggingBp = false;
 let dragOffset = { lat: 0, lng: 0 };
 
@@ -167,12 +169,33 @@ function drawPixels() {
     let targetLat, targetLng, targetScale;
 
     if (bpEditMode && bpTempImg.src) {
-        bp = bpTempImg;
-        // 🚨 [핵심] 배치 모드일 때는 도안이 지도의 '정중앙 격자'를 계속 따라다닙니다.
-        targetLat = Math.floor((center.lat() + EPSILON) / GRID_SIZE) * GRID_SIZE;
-        targetLng = Math.floor((center.lng() + EPSILON) / GRID_SIZE) * GRID_SIZE;
-        targetScale = bpTempScale;
-    } else if (guildBlueprint.isVisible && guildBlueprint.img && guildBlueprint.url !== "") {
+            bp = bpTempImg;
+
+            // 🚨 [핵심 수정] 이미지 중앙 정렬을 위한 오프셋 계산
+            // 1. 이미지의 총 격자 크기 계산 (픽셀 수 * 배율)
+            const gridsWide = bpTempImg.naturalWidth * bpTempScale;
+            const gridsHigh = bpTempImg.naturalHeight * bpTempScale;
+
+            // 2. 절반 크기만큼 보정할 위도/경도 값 계산 (GRID_SIZE 단위)
+            // 위도(Lat)는 북쪽이 +, 남쪽이 - 이므로 높이 절반만큼 뺍니다 (남쪽으로 이동시켜 기준점 잡기)
+            const latShift = (gridsHigh / 2) * GRID_SIZE;
+            // 경도(Lng)는 동쪽이 +, 서쪽이 - 이므로 너비 절반만큼 뺍니다 (서쪽으로 이동시켜 기준점 잡기)
+            const lngShift = (gridsWide / 2) * GRID_SIZE;
+
+            // 3. 지도 중앙에서 계산된 오프셋만큼 이동한 좌표를 기준으로 스냅(Snap)
+            const adjustedCenterLat = center.lat() + latShift;
+            const adjustedCenterLng = center.lng() - lngShift;
+
+            // 4. 계산된 좌표를 전역 변수에 저장 (저장 버튼에서 사용하기 위함)
+            currentBpLat = Math.floor((adjustedCenterLat + EPSILON) / GRID_SIZE) * GRID_SIZE;
+            currentBpLng = Math.floor((adjustedCenterLng + EPSILON) / GRID_SIZE) * GRID_SIZE;
+
+            // 5. 그리기 타겟 좌표 설정
+            targetLat = currentBpLat;
+            targetLng = currentBpLng;
+            targetScale = bpTempScale;
+
+        } else if (guildBlueprint.isVisible && guildBlueprint.img && guildBlueprint.url !== "") {
         bp = guildBlueprint.img;
         targetLat = guildBlueprint.lat; targetLng = guildBlueprint.lng;
         targetScale = 1;
@@ -221,34 +244,6 @@ function drawPixels() {
     });
 }
 
-// --- 드래그 이동 이벤트 리스너 ---
-canvas.addEventListener('mousedown', (e) => {
-    if (!bpEditMode) return;
-    isDraggingBp = true;
-    const rect = canvas.getBoundingClientRect();
-    const coord = map.getProjection().fromOffsetToCoord(new naver.maps.Point(e.clientX - rect.left, e.clientY - rect.top));
-
-    // 클릭한 지점과 도안 좌표의 차이(오프셋)를 저장하여 '끌기' 구현
-    dragOffset.lat = editLat - coord.lat();
-    dragOffset.lng = editLng - coord.lng();
-    map.setOptions({ draggable: false }); // 드래그 중 지도 이동 방지
-});
-
-canvas.addEventListener('mousemove', (e) => {
-    if (bpEditMode && isDraggingBp) {
-        const rect = canvas.getBoundingClientRect();
-        const coord = map.getProjection().fromOffsetToCoord(new naver.maps.Point(e.clientX - rect.left, e.clientY - rect.top));
-
-        // 오프셋을 유지하며 이동하고, 결과값을 GRID_SIZE 단위로 반올림(Snap)
-        const newLat = coord.lat() + dragOffset.lat;
-        const newLng = coord.lng() + dragOffset.lng;
-        editLat = Math.round(newLat / GRID_SIZE) * GRID_SIZE;
-        editLng = Math.round(newLng / GRID_SIZE) * GRID_SIZE;
-        scheduleDraw();
-    }
-});
-
-window.addEventListener('mouseup', () => { isDraggingBp = false; });
 
 // --- 픽셀 프리뷰 & 업데이트 로직 ---
 naver.maps.Event.addListener(map, 'mousemove', function(e) {
@@ -638,9 +633,9 @@ document.getElementById('blueprintScaleSlider').addEventListener('input', (e) =>
 
 // 3. 최종 저장 버튼 (중복 제거된 단일 버전)
 document.getElementById('confirmBlueprintBtn').addEventListener('click', () => {
-    const center = map.getCenter(); // 🎯 현재 지도의 정중앙 좌표 가져오기
-    const snapLat = Math.floor((center.lat() + EPSILON) / GRID_SIZE) * GRID_SIZE;
-    const snapLng = Math.floor((center.lng() + EPSILON) / GRID_SIZE) * GRID_SIZE;
+    // 🎯 방금 drawPixels()에서 계산해둔 중앙 정렬 좌표를 그대로 가져옵니다.
+    const snapLat = currentBpLat;
+    const snapLng = currentBpLng;
 
     const formData = new FormData();
     formData.append("file", bpTempImg.src === "" ? null : bpTempFile);
