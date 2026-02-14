@@ -47,24 +47,27 @@ public class GuildController {
     // JSON이 아닌 폼 데이터(FormData) 형식으로 파일과 좌표를 받습니다.
     @PostMapping("/blueprint")
     public ResponseEntity<String> updateBlueprint(
-            @RequestParam("file") MultipartFile file,   // 1. 프론트에서 보낸 파일
-            @RequestParam("lat") Double lat,            // 2. 위도
-            @RequestParam("lng") Double lng,            // 3. 경도
+            @RequestParam("file") MultipartFile file,
+            @RequestParam("lat") Double lat,
+            @RequestParam("lng") Double lng,
+            @RequestParam(value = "scale", defaultValue = "0.05") Double scale, // 🚨 크기(scale) 값 받기 추가!
             @AuthenticationPrincipal OAuth2User principal) {
 
         if (principal == null) return ResponseEntity.status(401).body("로그인 필요");
 
         try {
-            // 1. 파일을 S3에 업로드하고, 영구적인 인터넷 URL을 발급받습니다.
             String s3Url = s3UploadService.uploadBlueprint(file);
 
-            // 2. 기존 길드 서비스에 S3 URL과 좌표를 넘겨 DB에 저장합니다.
-            String result = guildService.updateBlueprint(principal.getName(), s3Url, lat, lng);
+            // 🚨 S3 URL 뒤에 몰래 크기 정보를 꼬리표처럼 붙여줍니다. (?scale=0.05)
+            // 이러면 굳이 데이터베이스(DB) 구조를 바꾸지 않아도 크기를 영구 저장할 수 있습니다!
+            String finalUrl = s3Url + "?scale=" + scale;
+
+            String result = guildService.updateBlueprint(principal.getName(), finalUrl, lat, lng);
             return ResponseEntity.ok(result);
 
         } catch (Exception e) {
             e.printStackTrace();
-            return ResponseEntity.internalServerError().body("이미지 업로드 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body("이미지 업로드 중 오류가 발생했습니다.");
         }
     }
 

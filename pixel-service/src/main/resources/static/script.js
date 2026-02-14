@@ -15,12 +15,18 @@ const KOREA_BOUNDS = new naver.maps.LatLngBounds(
 let isAttackMode = false;
 let pixelMap = new Map();
 let cachedHeatmapData = [];
-let guildBlueprint = { url: "", lat: 0, lng: 0, img: null, isVisible: true }; // 🔥 [추가] 청사진 정보
+let guildBlueprint = { url: "", lat: 0, lng: 0, img: null, isVisible: true };
 let myNickname = null;
 let isLoggedIn = false;
 let isCooldown = false;
 let cooldownInterval = null;
 let isEdgeScrollEnabled = false;
+
+// 🛠️ 도안 편집 모드용 변수 추가
+let bpEditMode = false;
+let bpTempFile = null;
+let bpTempImg = new Image();
+let bpTempScale = 0.05;
 
 // --- 지도 초기화 ---
 const map = new naver.maps.Map('map', {
@@ -154,8 +160,28 @@ function drawPixels() {
     if (map.getZoom() < 14) { pixelW += 1; pixelH += 1; }
     const tlOffset = projection.fromCoordToOffset(new naver.maps.LatLng(bounds.getNE().lat(), bounds.getSW().lng()));
 
-    // 🗺️ [추가] 청사진(오버레이) 그리기
-    if (guildBlueprint.isVisible && guildBlueprint.img && guildBlueprint.url !== "") {
+    // 🗺️ 청사진(오버레이) 그리기 로직 (편집 모드 & 일반 모드)
+    if (bpEditMode && bpTempImg.src) {
+        // [편집 모드]: 화면 정중앙에 고정시켜서 보여주기 (지도를 움직여서 맞춤)
+        const x = centerOffset.x - tlOffset.x;
+        const y = centerOffset.y - tlOffset.y;
+
+        const imgW = bpTempImg.width * pixelW * bpTempScale;
+        const imgH = bpTempImg.height * pixelH * bpTempScale;
+
+        // 중앙 정렬로 그리기
+        ctx.globalAlpha = 0.8;
+        ctx.drawImage(bpTempImg, x - imgW/2, y - imgH/2, imgW, imgH);
+
+        // 십자선 (타겟팅 가이드) 그리기
+        ctx.strokeStyle = "lime"; ctx.lineWidth = 2;
+        ctx.strokeRect(x - imgW/2, y - imgH/2, imgW, imgH);
+        ctx.beginPath(); ctx.moveTo(x - 15, y); ctx.lineTo(x + 15, y); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(x, y - 15); ctx.lineTo(x, y + 15); ctx.stroke();
+        ctx.globalAlpha = 1.0;
+
+    } else if (guildBlueprint.isVisible && guildBlueprint.img && guildBlueprint.url !== "") {
+        // [일반 모드]: 저장된 서버 좌표에 그리기
         const bpLatLng = new naver.maps.LatLng(guildBlueprint.lat, guildBlueprint.lng);
         // 이미지가 화면 근처에 있을 때 렌더링 시도
         if (bounds.hasLatLng(bpLatLng) || true) {
@@ -163,12 +189,19 @@ function drawPixels() {
             const x = Math.floor(bpOffset.x - tlOffset.x);
             const y = Math.floor(bpOffset.y - tlOffset.y);
 
-            // 이미지 크기를 지도 배율에 맞춤
-            const imgW = guildBlueprint.img.width * pixelW;
-            const imgH = guildBlueprint.img.height * pixelH;
+            // 🚨 URL에서 몰래 숨겨둔 스케일 값을 뽑아옵니다!
+            let savedScale = 0.05;
+            try {
+                const urlObj = new URL(guildBlueprint.url);
+                const scaleParam = urlObj.searchParams.get('scale');
+                if (scaleParam) savedScale = parseFloat(scaleParam);
+            } catch(e) {}
 
-            ctx.globalAlpha = 0.3; // 도안은 반투명하게
-            ctx.drawImage(guildBlueprint.img, x, y, imgW, imgH);
+            const imgW = guildBlueprint.img.width * pixelW * savedScale;
+            const imgH = guildBlueprint.img.height * pixelH * savedScale;
+
+            ctx.globalAlpha = 0.4; // 도안은 반투명하게
+            ctx.drawImage(guildBlueprint.img, x - imgW/2, y - imgH/2, imgW, imgH);
             ctx.globalAlpha = 1.0; // 다시 롤백
         }
     }
@@ -526,9 +559,6 @@ function checkMyGuildStatus() {
                 const setupArea = document.getElementById('blueprint-setup-area');
                 if (data.isMaster) {
                     setupArea.classList.remove('hidden');
-                    // 파일 업로드 창은 이전 URL을 표시할 수 없으므로 비워둡니다.
-                    document.getElementById('blueprintLatInput').value = data.blueprintLat || "";
-                    document.getElementById('blueprintLngInput').value = data.blueprintLng || "";
                 } else {
                     setupArea.classList.add('hidden');
                 }
@@ -540,8 +570,6 @@ function checkMyGuildStatus() {
                     guildBlueprint.lng = data.blueprintLng;
 
                     const img = document.getElementById('blueprintImage');
-
-                    // 🚨 [수정됨] 프록시 제거! S3 URL 직통 연결!
                     img.src = data.blueprintUrl;
 
                     img.onload = () => {
@@ -666,53 +694,74 @@ document.getElementById('blueprintToggle').addEventListener('change', (e) => {
     scheduleDraw(); // 켜고 끌 때마다 화면 갱신
 });
 
-// 🚨 [수정됨] 🗺️ 길드장 청사진 S3 업로드 저장 로직 (FormData 사용)
-document.getElementById('saveBlueprintBtn').addEventListener('click', () => {
+
+// ==========================================
+// 🗺️ 도안 배치 모드 로직 (드래그 & 크기조절)
+// ==========================================
+
+// 1. 배치 모드 시작 버튼
+document.getElementById('startEditBlueprintBtn').addEventListener('click', () => {
     const fileInput = document.getElementById('blueprintFileInput');
-    const lat = document.getElementById('blueprintLatInput').value;
-    const lng = document.getElementById('blueprintLngInput').value;
-
-    // 예외 처리 (파일과 좌표가 있는지 검사)
     if (!fileInput.files || fileInput.files.length === 0) {
-        alert("업로드할 도안 이미지를 선택해주세요.");
-        return;
-    }
-    if (!lat || !lng) {
-        alert("도안이 위치할 좌표(위도, 경도)를 입력해주세요.");
-        return;
+        alert("업로드할 도안 이미지를 먼저 선택해주세요!"); return;
     }
 
-    // 파일 전송을 위한 폼 데이터 객체 생성
+    // 선택한 파일을 임시로 화면에 띄움
+    bpTempFile = fileInput.files[0];
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        bpTempImg.src = e.target.result;
+        bpTempImg.onload = () => {
+            bpEditMode = true;
+            guildModal.classList.add('hidden'); // 길드창 숨기기
+            document.getElementById('blueprint-edit-ui').classList.remove('hidden'); // 편집창 열기
+            scheduleDraw();
+        };
+    };
+    reader.readAsDataURL(bpTempFile);
+});
+
+// 2. 크기 조절 슬라이더
+document.getElementById('blueprintScaleSlider').addEventListener('input', (e) => {
+    bpTempScale = parseFloat(e.target.value);
+    scheduleDraw(); // 슬라이더 움직일 때마다 실시간 화면 갱신
+});
+
+// 3. 배치 취소 버튼
+document.getElementById('cancelBlueprintBtn').addEventListener('click', () => {
+    bpEditMode = false;
+    document.getElementById('blueprint-edit-ui').classList.add('hidden');
+    guildModal.classList.remove('hidden'); // 길드창 다시 열기
+    scheduleDraw();
+});
+
+// 4. 최종 저장 버튼 (이때 서버로 전송!)
+document.getElementById('confirmBlueprintBtn').addEventListener('click', () => {
+    // 🚨 화면 정중앙 십자선 위치의 위도/경도를 그대로 추출!
+    const center = map.getCenter();
+
     const formData = new FormData();
-    formData.append("file", fileInput.files[0]); // 컨트롤러의 @RequestParam("file")과 일치해야 함
-    formData.append("lat", parseFloat(lat));
-    formData.append("lng", parseFloat(lng));
+    formData.append("file", bpTempFile);
+    formData.append("lat", center.lat());
+    formData.append("lng", center.lng());
+    formData.append("scale", bpTempScale); // 방금 맞춘 크기 전송
 
-    // 버튼 비활성화 (업로드 중 중복 클릭 방지)
-    const saveBtn = document.getElementById('saveBlueprintBtn');
-    saveBtn.innerText = "업로드 중...";
-    saveBtn.disabled = true;
+    const saveBtn = document.getElementById('confirmBlueprintBtn');
+    saveBtn.innerText = "업로드 중..."; saveBtn.disabled = true;
 
     fetch('/api/guilds/blueprint', {
         method: 'POST',
-        // 주의: FormData를 사용할 때는 Content-Type을 수동으로 설정하지 않습니다! (브라우저가 자동 설정)
         body: formData
     })
     .then(res => res.text())
     .then(msg => {
         if (msg === 'SUCCESS' || msg.startsWith('http')) {
-            alert("도안이 성공적으로 S3에 업로드되어 길드원들과 공유됩니다!");
-            checkMyGuildStatus(); // 다시 정보를 불러와서 지도에 즉시 렌더링
-        } else {
-            alert("저장 실패: " + msg);
-        }
+            alert("도안 위치와 크기가 완벽하게 저장되었습니다!");
+            bpEditMode = false;
+            document.getElementById('blueprint-edit-ui').classList.add('hidden');
+            checkMyGuildStatus(); // 다시 로드하여 갱신
+        } else { alert("저장 실패: " + msg); }
     })
-    .catch(err => {
-        console.error(err);
-        alert("업로드 중 네트워크 오류가 발생했습니다.");
-    })
-    .finally(() => {
-        saveBtn.innerText = "도안 저장 (길드장 전용)";
-        saveBtn.disabled = false;
-    });
+    .catch(console.error)
+    .finally(() => { saveBtn.innerText = "이 위치에 저장"; saveBtn.disabled = false; });
 });
