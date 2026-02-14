@@ -22,11 +22,14 @@ let isCooldown = false;
 let cooldownInterval = null;
 let isEdgeScrollEnabled = false;
 
-// 🛠️ 도안 편집 모드용 변수 (새로 추가됨)
+// 🛠️ 도안 편집 모드용 변수
 let bpEditMode = false;
 let bpTempFile = null;
 let bpTempImg = new Image();
-let bpTempScale = 1; // 1:1 매칭을 위해 기본값 1배로 설정
+let bpTempScale = 1;
+let editLat = 0;
+let editLng = 0;
+let isDraggingBp = false;
 
 // --- 지도 초기화 ---
 const map = new naver.maps.Map('map', {
@@ -81,11 +84,7 @@ cameraLockBtn.addEventListener('click', () => {
         cameraLockBtn.innerText = "🔓";
         cameraLockBtn.classList.remove('active-lock');
     } else {
-        if (isAttackMode) {
-            map.setOptions({ draggable: false });
-        } else {
-            map.setOptions({ draggable: true });
-        }
+        map.setOptions({ draggable: !isAttackMode });
         cameraLockBtn.innerText = "🔒";
         cameraLockBtn.classList.add('active-lock');
     }
@@ -153,29 +152,24 @@ function drawPixels() {
     if (!bounds || !projection) return;
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // 픽셀 아트의 날카로움을 유지하기 위해 이미지 보간 비활성화
     ctx.imageSmoothingEnabled = false;
 
     const center = map.getCenter();
     const centerOffset = projection.fromCoordToOffset(center);
     const nextGridOffset = projection.fromCoordToOffset(new naver.maps.LatLng(center.lat() + GRID_SIZE, center.lng() + GRID_SIZE));
 
-    // 1격자의 크기를 계산 (정수 처리하여 빈 틈 방지)
     const cellW = Math.ceil(Math.abs(nextGridOffset.x - centerOffset.x));
     const cellH = Math.ceil(Math.abs(nextGridOffset.y - centerOffset.y));
 
     const tlOffset = projection.fromCoordToOffset(new naver.maps.LatLng(bounds.getNE().lat(), bounds.getSW().lng()));
 
-    // --- 도안(Blueprint) 렌더링 파트 ---
     let bp = null;
     let targetLat, targetLng, targetScale;
 
     if (bpEditMode && bpTempImg.src) {
         bp = bpTempImg;
-        // 지도의 중심점을 격자 단위로 스냅
-        targetLat = Math.floor((center.lat() + EPSILON) / GRID_SIZE) * GRID_SIZE;
-        targetLng = Math.floor((center.lng() + EPSILON) / GRID_SIZE) * GRID_SIZE;
+        targetLat = editLat;
+        targetLng = editLng;
         targetScale = bpTempScale;
     } else if (guildBlueprint.isVisible && guildBlueprint.img && guildBlueprint.url !== "") {
         bp = guildBlueprint.img;
@@ -190,28 +184,23 @@ function drawPixels() {
     }
 
     if (bp && bp.complete) {
-        const iw = bp.naturalWidth || bp.width;
-        const ih = bp.naturalHeight || bp.height;
+        const iw = bp.naturalWidth;
+        const ih = bp.naturalHeight;
 
-        // ⭐ [핵심 수정] 도안의 중심을 맞추기 위한 오프셋 계산
-        // 도안의 총 격자 수(iw, ih)와 배율(targetScale)을 고려하여 절반만큼 좌표를 이동시킵니다.
-        const halfW = (iw * targetScale) / 2;
-        const halfH = (ih * targetScale) / 2;
+        const imgW = iw * cellW * (targetScale * 0.5);
+        const imgH = ih * cellH * (targetScale * 0.5);
 
-        // 위도는 북쪽이 +이므로 중심에서 절반만큼 더하고, 경도는 동쪽이 +이므로 중심에서 절반만큼 뺍니다.
-        const startLat = targetLat + (halfH * GRID_SIZE);
-        const startLng = targetLng - (halfW * GRID_SIZE);
+        const startLat = targetLat + (GRID_SIZE * (ih * targetScale * 0.5) / 2);
+        const startLng = targetLng - (GRID_SIZE * (iw * targetScale * 0.5) / 2);
 
         const startLatLng = new naver.maps.LatLng(startLat, startLng);
         const startOffset = projection.fromCoordToOffset(startLatLng);
 
         const x = Math.floor(startOffset.x - tlOffset.x);
         const y = Math.floor(startOffset.y - tlOffset.y);
-        const imgW = Math.ceil(iw * cellW * targetScale);
-        const imgH = Math.ceil(ih * cellH * targetScale);
 
         ctx.save();
-        ctx.globalAlpha = bpEditMode ? 0.8 : 0.4;
+        ctx.globalAlpha = bpEditMode ? 0.6 : 0.3;
         ctx.drawImage(bp, x, y, imgW, imgH);
 
         if (bpEditMode) {
@@ -222,21 +211,40 @@ function drawPixels() {
         ctx.restore();
     }
 
-    // --- 기존 점유 픽셀 렌더링 파트 ---
     pixelMap.forEach((p) => {
         if (bounds.hasLatLng(new naver.maps.LatLng(p.lat, p.lng))) {
             const latLng = new naver.maps.LatLng(p.lat + GRID_SIZE, p.lng);
             const pOffset = projection.fromCoordToOffset(latLng);
-
             const px = Math.floor(pOffset.x - tlOffset.x);
             const py = Math.floor(pOffset.y - tlOffset.y);
-
             ctx.fillStyle = p.color;
             ctx.fillRect(px, py, cellW, cellH);
         }
     });
 }
 
+// --- 드래그 이동 이벤트 리스너 ---
+canvas.addEventListener('mousedown', (e) => {
+    if (!bpEditMode) return;
+    isDraggingBp = true;
+});
+
+canvas.addEventListener('mousemove', (e) => {
+    if (bpEditMode && isDraggingBp) {
+        const rect = canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        const projection = map.getProjection();
+        const coord = projection.fromOffsetToCoord(new naver.maps.Point(x, y));
+        editLat = Math.floor((coord.lat() + EPSILON) / GRID_SIZE) * GRID_SIZE;
+        editLng = Math.floor((coord.lng() + EPSILON) / GRID_SIZE) * GRID_SIZE;
+        scheduleDraw();
+    }
+});
+
+window.addEventListener('mouseup', () => { isDraggingBp = false; });
+
+// --- 픽셀 프리뷰 & 업데이트 로직 ---
 naver.maps.Event.addListener(map, 'mousemove', function(e) {
     if (!isAttackMode) { previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height); return; }
     const projection = map.getProjection(), bounds = map.getBounds();
@@ -427,11 +435,7 @@ modeBtn.addEventListener('click', () => {
     } else {
         modeBtn.innerHTML = "📍 이동 모드";
         modeBtn.className = "btn-main-action mode-move";
-        if(isEdgeScrollEnabled) {
-            map.setOptions({ draggable: false });
-        } else {
-            map.setOptions({ draggable: true });
-        }
+        map.setOptions({ draggable: !isEdgeScrollEnabled });
         mapDiv.classList.remove('attack-cursor');
         previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
     }
@@ -456,16 +460,14 @@ fetch('/api/user/me').then(res => res.ok ? res.json() : Promise.reject()).then(u
     document.getElementById('nickname-display').innerText = myNickname;
     document.getElementById('chatInput').disabled = false;
     document.getElementById('chatSendBtn').disabled = false;
-    if(stompClient && stompClient.connected) {
-        sendChatMessage('ENTER', '');
-    }
+    if(stompClient && stompClient.connected) { sendChatMessage('ENTER', ''); }
 }).catch(() => { isLoggedIn = false; document.getElementById('login-area').classList.remove('hidden'); document.getElementById('user-info').classList.add('hidden'); });
 
 setTimeout(resizeCanvas, 500);
 
+// --- 히트맵 로직 ---
 let isHeatmapMode = false;
 const heatmapBtn = document.getElementById('heatmapBtn');
-
 heatmapBtn.addEventListener('click', () => {
     isHeatmapMode = !isHeatmapMode;
     if (isHeatmapMode) {
@@ -481,10 +483,7 @@ function loadHeatmap() {
     if (!isHeatmapMode) return;
     fetch('/api/pixels/hot')
         .then(res => res.json())
-        .then(data => {
-            cachedHeatmapData = data;
-            drawHeatmap(cachedHeatmapData);
-        })
+        .then(data => { cachedHeatmapData = data; drawHeatmap(cachedHeatmapData); })
         .catch(console.error);
 }
 
@@ -493,18 +492,15 @@ function drawHeatmap(hotPixels) {
     heatmapCtx.clearRect(0, 0, heatmapCanvas.width, heatmapCanvas.height);
     const projection = map.getProjection();
     const bounds = map.getBounds();
-
     heatmapCtx.filter = 'blur(8px)';
     heatmapCtx.globalCompositeOperation = 'lighter';
-
     hotPixels.forEach(p => {
         const score = parseInt(p.color);
         const latLng = new naver.maps.LatLng(p.lat, p.lng);
         if (bounds.hasLatLng(latLng)) {
             const pOffset = projection.fromCoordToOffset(latLng);
             const tl = projection.fromCoordToOffset(new naver.maps.LatLng(bounds.getNE().lat(), bounds.getSW().lng()));
-            const px = Math.floor(pOffset.x - tl.x);
-            const py = Math.floor(pOffset.y - tl.y);
+            const px = Math.floor(pOffset.x - tl.x), py = Math.floor(pOffset.y - tl.y);
             const radius = Math.min(score * 2, 40) + 10;
             heatmapCtx.beginPath();
             heatmapCtx.arc(px, py, radius, 0, Math.PI * 2);
@@ -514,24 +510,15 @@ function drawHeatmap(hotPixels) {
             heatmapCtx.fill();
         }
     });
-
     heatmapCtx.filter = 'none';
     heatmapCtx.globalCompositeOperation = 'source-over';
 }
 
-naver.maps.Event.addListener(map, 'idle', () => {
-    if(isHeatmapMode) loadHeatmap();
-});
-
-// --- 🛡️ 길드 시스템 및 🗺️ 청사진 로직 ---
+// --- 🛡️ 길드 시스템 & 🗺️ 청사진 로직 ---
 const guildBtn = document.getElementById('guildBtn');
 const guildModal = document.getElementById('guild-modal');
 const closeGuildBtn = document.getElementById('closeGuildBtn');
 
-const viewNoGuild = document.getElementById('view-no-guild');
-const viewHasGuild = document.getElementById('view-has-guild');
-
-// 모달 열기/닫기
 guildBtn.addEventListener('click', () => {
     if(!isLoggedIn) { alert("로그인이 필요합니다."); return; }
     guildModal.classList.remove('hidden');
@@ -539,11 +526,9 @@ guildBtn.addEventListener('click', () => {
 });
 closeGuildBtn.addEventListener('click', () => guildModal.classList.add('hidden'));
 
-// 탭 전환
 window.showTab = function(tabName) {
     document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
     document.querySelectorAll('.tab-content').forEach(content => content.classList.add('hidden'));
-
     if (tabName === 'list') {
         document.getElementById('tab-guild-list').classList.remove('hidden');
         document.querySelector('.tab-btn:nth-child(1)').classList.add('active');
@@ -554,199 +539,82 @@ window.showTab = function(tabName) {
     }
 };
 
-// [핵심] 내 길드 상태 확인 및 청사진 로드
 function checkMyGuildStatus() {
     fetch('/api/guilds/my')
         .then(res => res.json())
         .then(data => {
             if (data.hasGuild === false) {
-                viewNoGuild.classList.remove('hidden');
-                viewHasGuild.classList.add('hidden');
-                guildBlueprint.url = ""; // 길드가 없으면 도안 초기화
-                scheduleDraw();
-                loadGuildList();
+                document.getElementById('view-no-guild').classList.remove('hidden');
+                document.getElementById('view-has-guild').classList.add('hidden');
+                guildBlueprint.url = ""; scheduleDraw(); loadGuildList();
             } else {
-                viewNoGuild.classList.add('hidden');
-                viewHasGuild.classList.remove('hidden');
-
+                document.getElementById('view-no-guild').classList.add('hidden');
+                document.getElementById('view-has-guild').classList.remove('hidden');
                 document.getElementById('my-guild-name').innerText = data.name;
                 document.getElementById('my-guild-desc').innerText = data.description;
                 document.getElementById('my-guild-master').innerText = data.masterName + (data.isMaster ? " (나)" : "");
                 document.getElementById('my-guild-count').innerText = `${data.memberCount} / ${data.maxMembers}`;
 
-                // 🗺️ 청사진 UI 표시 (길드장에게만 입력 폼 노출)
-                const setupArea = document.getElementById('blueprint-setup-area');
-                const deleteBtn = document.getElementById('deleteBlueprintBtn');
-
                 if (data.isMaster) {
-                    setupArea.classList.remove('hidden');
-                    // 등록된 도안이 있으면 삭제 버튼 노출, 없으면 숨김
-                    if (data.blueprintUrl && data.blueprintUrl !== "") {
-                        deleteBtn.classList.remove('hidden');
-                    } else {
-                        deleteBtn.classList.add('hidden');
-                    }
-                } else {
-                    setupArea.classList.add('hidden');
-                }
+                    document.getElementById('blueprint-setup-area').classList.remove('hidden');
+                    if (data.blueprintUrl) document.getElementById('deleteBlueprintBtn').classList.remove('hidden');
+                    else document.getElementById('deleteBlueprintBtn').classList.add('hidden');
+                } else { document.getElementById('blueprint-setup-area').classList.add('hidden'); }
 
-                // 🗺️ 서버에서 받은 도안 정보 저장 및 렌더링
                 if (data.blueprintUrl && data.blueprintUrl !== guildBlueprint.url) {
                     guildBlueprint.url = data.blueprintUrl;
                     guildBlueprint.lat = data.blueprintLat;
                     guildBlueprint.lng = data.blueprintLng;
-
                     const img = document.getElementById('blueprintImage');
                     img.src = data.blueprintUrl;
-
-                    img.onload = () => {
-                        guildBlueprint.img = img;
-                        scheduleDraw(); // 이미지 로드 완료 시 화면 갱신
-                    };
-                    img.onerror = () => {
-                        console.warn("도안 이미지를 불러올 수 없습니다.");
-                        guildBlueprint.img = null;
-                    };
-                } else if (!data.blueprintUrl || data.blueprintUrl === "") {
-                    // 도안이 삭제된 경우 화면 초기화
-                    guildBlueprint.url = "";
-                    guildBlueprint.img = null;
-                    scheduleDraw();
-                }
+                    img.onload = () => { guildBlueprint.img = img; scheduleDraw(); };
+                } else if (!data.blueprintUrl) { guildBlueprint.url = ""; guildBlueprint.img = null; scheduleDraw(); }
             }
-        })
-        .catch(console.error);
+        }).catch(console.error);
 }
 
-// 길드 목록 불러오기
 function loadGuildList() {
     const container = document.getElementById('guild-list-container');
-    container.innerHTML = '<div style="text-align:center; color:#888; margin-top:20px;">로딩 중...</div>';
-
-    fetch('/api/guilds')
-        .then(res => res.json())
-        .then(data => {
-            container.innerHTML = '';
-            if (data.length === 0) {
-                container.innerHTML = '<div style="text-align:center; color:#666; margin-top:50px;">생성된 길드가 없습니다.<br>첫 번째 길드장이 되어보세요! 👑</div>';
-                return;
-            }
-            data.forEach(g => {
-                const div = document.createElement('div');
-                div.className = 'guild-item';
-
-                const isFull = g.memberCount >= g.maxMembers;
-                const btnHtml = isFull
-                    ? `<button class="btn-join disabled" disabled>만원</button>`
-                    : `<button class="btn-join" onclick="joinGuild(${g.id})">가입</button>`;
-
-                div.innerHTML = `
-                    <div class="g-info">
-                        <span class="g-name">${g.name}</span>
-                        <div style="font-size:11px; color:#aaa;">
-                            <span>${g.description}</span> • <span style="color:#4caf50;">${g.memberCount}/${g.maxMembers}명</span>
-                        </div>
-                    </div>
-                    ${btnHtml}
-                `;
-                container.appendChild(div);
-            });
-        })
-        .catch(console.error);
+    container.innerHTML = '로딩 중...';
+    fetch('/api/guilds').then(res => res.json()).then(data => {
+        container.innerHTML = '';
+        if (data.length === 0) { container.innerHTML = '생성된 길드가 없습니다.'; return; }
+        data.forEach(g => {
+            const div = document.createElement('div'); div.className = 'guild-item';
+            const btnHtml = g.memberCount >= g.maxMembers ? `<button class="btn-join disabled" disabled>만원</button>` : `<button class="btn-join" onclick="joinGuild(${g.id})">가입</button>`;
+            div.innerHTML = `<div class="g-info"><span class="g-name">${g.name}</span><div class="g-desc">${g.description} • ${g.memberCount}/${g.maxMembers}명</div></div>${btnHtml}`;
+            container.appendChild(div);
+        });
+    });
 }
 
-// 길드 생성하기
 document.getElementById('createGuildActionBtn').addEventListener('click', () => {
     const name = document.getElementById('guildNameInput').value;
     const desc = document.getElementById('guildDescInput').value;
-    if (!name.trim()) { alert("길드 이름을 입력해주세요."); return; }
-
-    fetch('/api/guilds', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name, description: desc })
-    })
-    .then(res => res.text())
-    .then(msg => {
-        if (msg === 'SUCCESS') {
-            alert("길드가 창설되었습니다! 🎉");
-            document.getElementById('guildNameInput').value = '';
-            document.getElementById('guildDescInput').value = '';
-            checkMyGuildStatus();
-        } else if (msg === 'ALREADY_HAS_GUILD') {
-            alert("이미 가입된 길드가 있습니다.");
-        } else {
-            alert("생성 실패: " + msg);
-        }
-    })
-    .catch(console.error);
+    if (!name.trim()) return;
+    fetch('/api/guilds', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, description: desc }) })
+    .then(res => res.text()).then(msg => { if (msg === 'SUCCESS') checkMyGuildStatus(); else alert(msg); });
 });
 
-// 길드 가입하기
-window.joinGuild = function(guildId) {
-    if (!confirm("정말 이 길드에 가입하시겠습니까?")) return;
+window.joinGuild = (id) => { if (confirm("가입하시겠습니까?")) fetch(`/api/guilds/${id}/join`, { method: 'POST' }).then(() => checkMyGuildStatus()); };
+window.leaveGuild = () => { if (confirm("탈퇴하시겠습니까?")) fetch('/api/guilds/leave', { method: 'POST' }).then(() => checkMyGuildStatus()); };
+document.getElementById('blueprintToggle').addEventListener('change', (e) => { guildBlueprint.isVisible = e.target.checked; scheduleDraw(); });
 
-    fetch(`/api/guilds/${guildId}/join`, { method: 'POST' })
-    .then(res => res.text())
-    .then(msg => {
-        if (msg === 'SUCCESS') {
-            alert("가입되었습니다! ⚔️");
-            checkMyGuildStatus();
-        } else if (msg === 'GUILD_FULL') {
-            alert("길드 정원이 꽉 찼습니다.");
-        } else if (msg === 'ALREADY_HAS_GUILD') {
-            alert("이미 가입한 길드가 있습니다.");
-        } else {
-            alert(msg);
-        }
-    })
-    .catch(console.error);
-};
-
-// 길드 탈퇴하기
-window.leaveGuild = function() {
-    if (!confirm("정말 탈퇴하시겠습니까?\n(길드장이면 다음 멤버에게 권한이 위임되며,\n마지막 멤버일 경우 길드가 삭제됩니다.)")) return;
-
-    fetch('/api/guilds/leave', { method: 'POST' })
-    .then(res => res.text())
-    .then(msg => {
-        if (msg === 'SUCCESS' || msg === 'GUILD_DELETED') {
-            alert(msg === 'GUILD_DELETED' ? "마지막 멤버가 떠나 길드가 삭제되었습니다." : "탈퇴했습니다.");
-            checkMyGuildStatus();
-        } else {
-            alert("오류: " + msg);
-        }
-    })
-    .catch(console.error);
-};
-
-// 🗺️ 청사진 토글 스위치 이벤트
-document.getElementById('blueprintToggle').addEventListener('change', (e) => {
-    guildBlueprint.isVisible = e.target.checked;
-    scheduleDraw(); // 켜고 끌 때마다 화면 갱신
-});
-
-
-// ==========================================
-// 🗺️ 도안 배치 모드 로직 (드래그 & 크기조절)
-// ==========================================
-
-// 1. 배치 모드 시작 버튼
+// 🗺️ 도안 배치 로직
 document.getElementById('startEditBlueprintBtn').addEventListener('click', () => {
     const fileInput = document.getElementById('blueprintFileInput');
-    if (!fileInput.files || fileInput.files.length === 0) {
-        alert("업로드할 도안 이미지를 먼저 선택해주세요!"); return;
-    }
-
+    if (!fileInput.files[0]) return;
     bpTempFile = fileInput.files[0];
     const reader = new FileReader();
     reader.onload = (e) => {
         bpTempImg.src = e.target.result;
         bpTempImg.onload = () => {
             bpEditMode = true;
+            const center = map.getCenter();
+            editLat = Math.floor((center.lat() + EPSILON) / GRID_SIZE) * GRID_SIZE;
+            editLng = Math.floor((center.lng() + EPSILON) / GRID_SIZE) * GRID_SIZE;
             guildModal.classList.add('hidden');
             document.getElementById('blueprint-edit-ui').classList.remove('hidden');
-            document.getElementById('blueprint-crosshair').classList.remove('hidden');
             scheduleDraw();
         };
     };
@@ -756,77 +624,27 @@ document.getElementById('startEditBlueprintBtn').addEventListener('click', () =>
 function exitBpEditMode() {
     bpEditMode = false;
     document.getElementById('blueprint-edit-ui').classList.add('hidden');
-    document.getElementById('blueprint-crosshair').classList.add('hidden'); // 십자선 숨김
     guildModal.classList.remove('hidden');
     scheduleDraw();
 }
 
-// 2. 크기 조절 슬라이더
+document.getElementById('cancelBlueprintBtn').addEventListener('click', exitBpEditMode);
 document.getElementById('blueprintScaleSlider').addEventListener('input', (e) => {
     bpTempScale = parseInt(e.target.value);
-    document.getElementById('scaleValueDisplay').innerText = bpTempScale + "배"; // 글자 업데이트
-    scheduleDraw(); // 슬라이더 움직일 때마다 실시간 화면 갱신
+    document.getElementById('scaleValueDisplay').innerText = bpTempScale + "배";
+    scheduleDraw();
 });
 
-// [기존 3번 버튼 수정] 배치 취소 버튼
-document.getElementById('cancelBlueprintBtn').addEventListener('click', () => {
-    exitBpEditMode(); // 정의된 공통 함수를 호출하여 중복 제거
-});
-
-// [기존 4번 버튼 수정] 최종 저장 버튼
 document.getElementById('confirmBlueprintBtn').addEventListener('click', () => {
-    const center = map.getCenter();
-    const snapLat = Math.floor((center.lat() + EPSILON) / GRID_SIZE) * GRID_SIZE;
-    const snapLng = Math.floor((center.lng() + EPSILON) / GRID_SIZE) * GRID_SIZE;
-
     const formData = new FormData();
     formData.append("file", bpTempFile);
-    formData.append("lat", snapLat);
-    formData.append("lng", snapLng);
+    formData.append("lat", editLat);
+    formData.append("lng", editLng);
     formData.append("scale", bpTempScale);
-
-    const saveBtn = document.getElementById('confirmBlueprintBtn');
-    saveBtn.innerText = "업로드 중..."; saveBtn.disabled = true;
-
-    fetch('/api/guilds/blueprint', {
-        method: 'POST',
-        body: formData
-    })
-    .then(res => res.text())
-    .then(msg => {
-        if (msg === 'SUCCESS' || msg.startsWith('http')) {
-            alert("도안 위치와 크기가 완벽하게 저장되었습니다!");
-            exitBpEditMode(); // 저장 성공 시에도 공통 함수 호출
-            checkMyGuildStatus();
-        } else { alert("저장 실패: " + msg); }
-    })
-    .catch(console.error)
-    .finally(() => {
-        saveBtn.innerText = "이 위치에 저장";
-        saveBtn.disabled = false;
-    });
+    fetch('/api/guilds/blueprint', { method: 'POST', body: formData })
+    .then(res => res.text()).then(msg => { if (msg === 'SUCCESS' || msg.startsWith('http')) exitBpEditMode(); checkMyGuildStatus(); });
 });
 
-// 🗑️ 5. 도안 삭제 로직 (길드장 전용)
 document.getElementById('deleteBlueprintBtn').addEventListener('click', () => {
-    if (!confirm("정말 현재 등록된 길드 도안을 삭제하시겠습니까?")) return;
-
-    // 길드장에게만 보이는 이 버튼을 누르면 서버에 DELETE 요청 발송
-    fetch('/api/guilds/blueprint', {
-        method: 'DELETE'
-    })
-    .then(res => res.text())
-    .then(msg => {
-        // 서버에서 성공 응답이 오면 도안 초기화
-        if (msg === 'SUCCESS' || msg === '성공' || !msg.includes('실패')) {
-            alert("도안이 삭제되었습니다.");
-            guildBlueprint.url = "";
-            guildBlueprint.img = null;
-            scheduleDraw();
-            checkMyGuildStatus(); // 다시 갱신해서 버튼 숨기기
-        } else {
-            alert("삭제 실패: " + msg);
-        }
-    })
-    .catch(console.error);
+    if (confirm("삭제하시겠습니까?")) fetch('/api/guilds/blueprint', { method: 'DELETE' }).then(() => checkMyGuildStatus());
 });
