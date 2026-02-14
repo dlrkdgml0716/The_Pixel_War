@@ -22,12 +22,11 @@ let isCooldown = false;
 let cooldownInterval = null;
 let isEdgeScrollEnabled = false;
 
-// 🛠️ 도안 편집 모드용 변수 추가
+// 🛠️ 도안 편집 모드용 변수 (새로 추가됨)
 let bpEditMode = false;
 let bpTempFile = null;
 let bpTempImg = new Image();
-// 기본 크기 배율을 정수 1로 설정
-let bpTempScale = 1;
+let bpTempScale = 1; // 1:1 매칭을 위해 기본값 1배로 설정
 
 // --- 지도 초기화 ---
 const map = new naver.maps.Map('map', {
@@ -163,26 +162,24 @@ function drawPixels() {
 
     // 🗺️ 청사진(오버레이) 그리기 로직 (편집 모드 & 일반 모드)
     if (bpEditMode && bpTempImg.src) {
-        // 1. 화면 중앙 좌표를 지도 그리드(격자) 단위로 스냅(Snap) 시킵니다!
+        // 🚨 1. 화면 중앙 좌표를 지도 그리드(격자) 단위로 스냅(Snap) 시킵니다!
         const snapLat = Math.floor((center.lat() + EPSILON) / GRID_SIZE) * GRID_SIZE;
         const snapLng = Math.floor((center.lng() + EPSILON) / GRID_SIZE) * GRID_SIZE;
 
-        // 2. 도트가 시작되는 '좌상단 모서리'를 정확히 맞추기 위해 위도에 GRID_SIZE를 더합니다.
+        // 🚨 2. 도트가 시작되는 '좌상단 모서리'를 정확히 맞추기 위해 위도에 GRID_SIZE를 더합니다.
         const startLatLng = new naver.maps.LatLng(snapLat + GRID_SIZE, snapLng);
         const startOffset = projection.fromCoordToOffset(startLatLng);
 
         const x = startOffset.x - tlOffset.x;
         const y = startOffset.y - tlOffset.y;
 
-        // 3. 이미지 넓이 = 이미지 픽셀 수 * 지도 1칸 넓이 * 정수 배율 (완벽한 1:1 매칭!)
+        // 🚨 3. 이미지 넓이 = 이미지 픽셀 수 * 지도 1칸 넓이 * 정수 배율 (완벽한 1:1 매칭!)
         const imgW = bpTempImg.width * pixelW * bpTempScale;
         const imgH = bpTempImg.height * pixelH * bpTempScale;
 
         ctx.globalAlpha = 0.8;
-        // 중앙 정렬 없이, 시작점(x, y)부터 완벽한 크기로 그리기
         ctx.drawImage(bpTempImg, x, y, imgW, imgH);
 
-        // 타겟팅 가이드 박스
         ctx.strokeStyle = "lime"; ctx.lineWidth = 2;
         ctx.strokeRect(x, y, imgW, imgH);
         ctx.globalAlpha = 1.0;
@@ -192,14 +189,12 @@ function drawPixels() {
         const snapLat = guildBlueprint.lat;
         const snapLng = guildBlueprint.lng;
 
-        // 여기도 마찬가지로 격자 선 모서리에 완벽하게 맞춥니다.
         const startLatLng = new naver.maps.LatLng(snapLat + GRID_SIZE, snapLng);
         const startOffset = projection.fromCoordToOffset(startLatLng);
 
         const x = startOffset.x - tlOffset.x;
         const y = startOffset.y - tlOffset.y;
 
-        // URL에서 정수로 된 배율 가져오기
         let savedScale = 1;
         try {
             const urlObj = new URL(guildBlueprint.url);
@@ -762,7 +757,7 @@ document.getElementById('cancelBlueprintBtn').addEventListener('click', () => {
 document.getElementById('confirmBlueprintBtn').addEventListener('click', () => {
     const center = map.getCenter();
 
-    // 저장할 때도 좌표가 엇나가지 않도록 완벽한 '격자 자석 좌표'로 변환해서 보냅니다!
+    // 🚨 저장할 때도 좌표가 엇나가지 않도록 완벽한 '격자 자석 좌표'로 변환해서 보냅니다!
     const snapLat = Math.floor((center.lat() + EPSILON) / GRID_SIZE) * GRID_SIZE;
     const snapLng = Math.floor((center.lng() + EPSILON) / GRID_SIZE) * GRID_SIZE;
 

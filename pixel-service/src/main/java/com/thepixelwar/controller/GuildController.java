@@ -43,7 +43,7 @@ public class GuildController {
         return ResponseEntity.ok(guildService.leaveGuild(principal.getName()));
     }
 
-    // 🗺️ 청사진 업데이트 API (크기 조절 scale 포함)
+    // 🗺️ 청사진 업데이트 API (정수 배율 scale 포함)
     @PostMapping("/blueprint")
     public ResponseEntity<String> updateBlueprint(
             @RequestParam("file") MultipartFile file,
@@ -55,10 +55,16 @@ public class GuildController {
         if (principal == null) return ResponseEntity.status(401).body("로그인 필요");
 
         try {
+            // 1. 파일을 S3에 업로드
             String s3Url = s3UploadService.uploadBlueprint(file);
-            String finalUrl = s3Url + "?scale=" + scale;
+
+            // 2. S3 URL 뒤에 정수 배율 정보를 몰래 붙여서 DB에 저장 (꼼수 마법 🧙‍♂️)
+            String finalUrl = s3Url + "?scale=" + Math.round(scale);
+
+            // 3. 기존 길드 서비스에 저장
             String result = guildService.updateBlueprint(principal.getName(), finalUrl, lat, lng);
             return ResponseEntity.ok(result);
+
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.internalServerError().body("이미지 업로드 중 오류가 발생했습니다.");
@@ -71,7 +77,7 @@ public class GuildController {
         if (principal == null) return ResponseEntity.status(401).body("로그인 필요");
 
         try {
-            // DB의 url, lat, lng를 비워버립니다 (0.0 좌표와 빈 문자열)
+            // DB의 URL과 좌표를 비워서 도안을 제거합니다.
             String result = guildService.updateBlueprint(principal.getName(), "", 0.0, 0.0);
             return ResponseEntity.ok(result);
         } catch (Exception e) {
