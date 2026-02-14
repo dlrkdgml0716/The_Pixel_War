@@ -148,76 +148,84 @@ function resizeCanvas() {
 window.addEventListener('resize', resizeCanvas);
 
 function drawPixels() {
-    const projection = map.getProjection(), bounds = map.getBounds();
+    const projection = map.getProjection();
+    const bounds = map.getBounds();
     if (!bounds || !projection) return;
+
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // [추가] 픽셀 아트의 날카로움을 유지하기 위해 이미지 보간(스무딩) 비활성화
+    ctx.imageSmoothingEnabled = false;
 
     const center = map.getCenter();
     const centerOffset = projection.fromCoordToOffset(center);
     const nextGridOffset = projection.fromCoordToOffset(new naver.maps.LatLng(center.lat() + GRID_SIZE, center.lng() + GRID_SIZE));
-    let pixelW = Math.max(Math.abs(nextGridOffset.x - centerOffset.x), 3);
-    let pixelH = Math.max(Math.abs(nextGridOffset.y - centerOffset.y), 3);
-    if (map.getZoom() < 14) { pixelW += 1; pixelH += 1; }
+
+    // 1격자의 크기를 정수로 올림 처리하여 빈 틈(Gap) 방지
+    const cellW = Math.ceil(Math.abs(nextGridOffset.x - centerOffset.x));
+    const cellH = Math.ceil(Math.abs(nextGridOffset.y - centerOffset.y));
+
     const tlOffset = projection.fromCoordToOffset(new naver.maps.LatLng(bounds.getNE().lat(), bounds.getSW().lng()));
 
-    // 🗺️ 청사진(오버레이) 그리기 로직 (편집 모드 & 일반 모드)
+    // --- 도안(Blueprint) 렌더링 파트 ---
+    let bp = null;
+    let targetLat, targetLng, targetScale;
+
     if (bpEditMode && bpTempImg.src) {
-        // 🚨 1. 화면 중앙 좌표를 지도 그리드(격자) 단위로 스냅(Snap) 시킵니다!
-        const snapLat = Math.floor((center.lat() + EPSILON) / GRID_SIZE) * GRID_SIZE;
-        const snapLng = Math.floor((center.lng() + EPSILON) / GRID_SIZE) * GRID_SIZE;
-
-        // 🚨 2. 도트가 시작되는 '좌상단 모서리'를 정확히 맞추기 위해 위도에 GRID_SIZE를 더합니다.
-        const startLatLng = new naver.maps.LatLng(snapLat + GRID_SIZE, snapLng);
-        const startOffset = projection.fromCoordToOffset(startLatLng);
-
-        const x = startOffset.x - tlOffset.x;
-        const y = startOffset.y - tlOffset.y;
-
-        // 🚨 3. 이미지 넓이 = 이미지 픽셀 수 * 지도 1칸 넓이 * 정수 배율 (완벽한 1:1 매칭!)
-        const imgW = bpTempImg.width * pixelW * bpTempScale;
-        const imgH = bpTempImg.height * pixelH * bpTempScale;
-
-        ctx.globalAlpha = 0.8;
-        ctx.drawImage(bpTempImg, x, y, imgW, imgH);
-
-        ctx.strokeStyle = "lime"; ctx.lineWidth = 2;
-        ctx.strokeRect(x, y, imgW, imgH);
-        ctx.globalAlpha = 1.0;
-
+        bp = bpTempImg;
+        targetLat = Math.floor((center.lat() + EPSILON) / GRID_SIZE) * GRID_SIZE;
+        targetLng = Math.floor((center.lng() + EPSILON) / GRID_SIZE) * GRID_SIZE;
+        targetScale = bpTempScale;
     } else if (guildBlueprint.isVisible && guildBlueprint.img && guildBlueprint.url !== "") {
-        // [일반 모드] 저장된 서버 좌표에 그리기
-        const snapLat = guildBlueprint.lat;
-        const snapLng = guildBlueprint.lng;
-
-        const startLatLng = new naver.maps.LatLng(snapLat + GRID_SIZE, snapLng);
-        const startOffset = projection.fromCoordToOffset(startLatLng);
-
-        const x = startOffset.x - tlOffset.x;
-        const y = startOffset.y - tlOffset.y;
-
-        let savedScale = 1;
+        bp = guildBlueprint.img;
+        targetLat = guildBlueprint.lat;
+        targetLng = guildBlueprint.lng;
+        targetScale = 1;
         try {
             const urlObj = new URL(guildBlueprint.url);
             const scaleParam = urlObj.searchParams.get('scale');
-            if (scaleParam) savedScale = parseInt(scaleParam);
+            if (scaleParam) targetScale = parseInt(scaleParam);
         } catch(e) {}
-
-        const imgW = guildBlueprint.img.width * pixelW * savedScale;
-        const imgH = guildBlueprint.img.height * pixelH * savedScale;
-
-        ctx.globalAlpha = 0.4;
-        ctx.drawImage(guildBlueprint.img, x, y, imgW, imgH);
-        ctx.globalAlpha = 1.0;
     }
 
-    // 픽셀 그리기
-    ctx.beginPath();
+    if (bp && bp.complete) {
+        // ✅ 분석하신 naturalWidth/Height 적용 (이미지 원본 픽셀 수 기준)
+        const iw = bp.naturalWidth || bp.width;
+        const ih = bp.naturalHeight || bp.height;
+
+        const startLatLng = new naver.maps.LatLng(targetLat + GRID_SIZE, targetLng);
+        const startOffset = projection.fromCoordToOffset(startLatLng);
+
+        // ✅ 모든 좌표와 크기를 Math.floor/ceil로 정수화하여 서브픽셀 보간 방지
+        const x = Math.floor(startOffset.x - tlOffset.x);
+        const y = Math.floor(startOffset.y - tlOffset.y);
+        const imgW = iw * cellW * targetScale;
+        const imgH = ih * cellH * targetScale;
+
+        ctx.save();
+        ctx.globalAlpha = bpEditMode ? 0.8 : 0.4;
+        ctx.drawImage(bp, x, y, imgW, imgH);
+
+        if (bpEditMode) {
+            ctx.strokeStyle = "#00FF00";
+            ctx.lineWidth = 2;
+            ctx.strokeRect(x, y, imgW, imgH);
+        }
+        ctx.restore();
+    }
+
+    // --- 기존 점유 픽셀 렌더링 파트 ---
     pixelMap.forEach((p) => {
         if (bounds.hasLatLng(new naver.maps.LatLng(p.lat, p.lng))) {
             const latLng = new naver.maps.LatLng(p.lat + GRID_SIZE, p.lng);
             const pOffset = projection.fromCoordToOffset(latLng);
+
+            // 픽셀과 도안이 같은 수식을 쓰도록 통일
+            const px = Math.floor(pOffset.x - tlOffset.x);
+            const py = Math.floor(pOffset.y - tlOffset.y);
+
             ctx.fillStyle = p.color;
-            ctx.fillRect(Math.floor(pOffset.x - tlOffset.x), Math.floor(pOffset.y - tlOffset.y), Math.ceil(pixelW), Math.ceil(pixelH));
+            ctx.fillRect(px, py, cellW, cellH);
         }
     });
 }
