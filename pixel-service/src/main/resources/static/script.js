@@ -154,14 +154,14 @@ function drawPixels() {
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // [추가] 픽셀 아트의 날카로움을 유지하기 위해 이미지 보간(스무딩) 비활성화
+    // 픽셀 아트의 날카로움을 유지하기 위해 이미지 보간 비활성화
     ctx.imageSmoothingEnabled = false;
 
     const center = map.getCenter();
     const centerOffset = projection.fromCoordToOffset(center);
     const nextGridOffset = projection.fromCoordToOffset(new naver.maps.LatLng(center.lat() + GRID_SIZE, center.lng() + GRID_SIZE));
 
-    // 1격자의 크기를 정수로 올림 처리하여 빈 틈(Gap) 방지
+    // 1격자의 크기를 계산 (정수 처리하여 빈 틈 방지)
     const cellW = Math.ceil(Math.abs(nextGridOffset.x - centerOffset.x));
     const cellH = Math.ceil(Math.abs(nextGridOffset.y - centerOffset.y));
 
@@ -173,6 +173,7 @@ function drawPixels() {
 
     if (bpEditMode && bpTempImg.src) {
         bp = bpTempImg;
+        // 지도의 중심점을 격자 단위로 스냅
         targetLat = Math.floor((center.lat() + EPSILON) / GRID_SIZE) * GRID_SIZE;
         targetLng = Math.floor((center.lng() + EPSILON) / GRID_SIZE) * GRID_SIZE;
         targetScale = bpTempScale;
@@ -189,18 +190,25 @@ function drawPixels() {
     }
 
     if (bp && bp.complete) {
-        // ✅ 분석하신 naturalWidth/Height 적용 (이미지 원본 픽셀 수 기준)
         const iw = bp.naturalWidth || bp.width;
         const ih = bp.naturalHeight || bp.height;
 
-        const startLatLng = new naver.maps.LatLng(targetLat + GRID_SIZE, targetLng);
+        // ⭐ [핵심 수정] 도안의 중심을 맞추기 위한 오프셋 계산
+        // 도안의 총 격자 수(iw, ih)와 배율(targetScale)을 고려하여 절반만큼 좌표를 이동시킵니다.
+        const halfW = (iw * targetScale) / 2;
+        const halfH = (ih * targetScale) / 2;
+
+        // 위도는 북쪽이 +이므로 중심에서 절반만큼 더하고, 경도는 동쪽이 +이므로 중심에서 절반만큼 뺍니다.
+        const startLat = targetLat + (halfH * GRID_SIZE);
+        const startLng = targetLng - (halfW * GRID_SIZE);
+
+        const startLatLng = new naver.maps.LatLng(startLat, startLng);
         const startOffset = projection.fromCoordToOffset(startLatLng);
 
-        // ✅ 모든 좌표와 크기를 Math.floor/ceil로 정수화하여 서브픽셀 보간 방지
         const x = Math.floor(startOffset.x - tlOffset.x);
         const y = Math.floor(startOffset.y - tlOffset.y);
-        const imgW = iw * cellW * targetScale;
-        const imgH = ih * cellH * targetScale;
+        const imgW = Math.ceil(iw * cellW * targetScale);
+        const imgH = Math.ceil(ih * cellH * targetScale);
 
         ctx.save();
         ctx.globalAlpha = bpEditMode ? 0.8 : 0.4;
@@ -220,7 +228,6 @@ function drawPixels() {
             const latLng = new naver.maps.LatLng(p.lat + GRID_SIZE, p.lng);
             const pOffset = projection.fromCoordToOffset(latLng);
 
-            // 픽셀과 도안이 같은 수식을 쓰도록 통일
             const px = Math.floor(pOffset.x - tlOffset.x);
             const py = Math.floor(pOffset.y - tlOffset.y);
 
@@ -731,20 +738,28 @@ document.getElementById('startEditBlueprintBtn').addEventListener('click', () =>
         alert("업로드할 도안 이미지를 먼저 선택해주세요!"); return;
     }
 
-    // 선택한 파일을 임시로 화면에 띄움
     bpTempFile = fileInput.files[0];
     const reader = new FileReader();
     reader.onload = (e) => {
         bpTempImg.src = e.target.result;
         bpTempImg.onload = () => {
             bpEditMode = true;
-            guildModal.classList.add('hidden'); // 길드창 숨기기
-            document.getElementById('blueprint-edit-ui').classList.remove('hidden'); // 편집창 열기
+            guildModal.classList.add('hidden');
+            document.getElementById('blueprint-edit-ui').classList.remove('hidden');
+            document.getElementById('blueprint-crosshair').classList.remove('hidden');
             scheduleDraw();
         };
     };
     reader.readAsDataURL(bpTempFile);
 });
+
+function exitBpEditMode() {
+    bpEditMode = false;
+    document.getElementById('blueprint-edit-ui').classList.add('hidden');
+    document.getElementById('blueprint-crosshair').classList.add('hidden'); // 십자선 숨김
+    guildModal.classList.remove('hidden');
+    scheduleDraw();
+}
 
 // 2. 크기 조절 슬라이더
 document.getElementById('blueprintScaleSlider').addEventListener('input', (e) => {
@@ -753,19 +768,14 @@ document.getElementById('blueprintScaleSlider').addEventListener('input', (e) =>
     scheduleDraw(); // 슬라이더 움직일 때마다 실시간 화면 갱신
 });
 
-// 3. 배치 취소 버튼
+// [기존 3번 버튼 수정] 배치 취소 버튼
 document.getElementById('cancelBlueprintBtn').addEventListener('click', () => {
-    bpEditMode = false;
-    document.getElementById('blueprint-edit-ui').classList.add('hidden');
-    guildModal.classList.remove('hidden'); // 길드창 다시 열기
-    scheduleDraw();
+    exitBpEditMode(); // 정의된 공통 함수를 호출하여 중복 제거
 });
 
-// 4. 최종 저장 버튼 (이때 서버로 전송!)
+// [기존 4번 버튼 수정] 최종 저장 버튼
 document.getElementById('confirmBlueprintBtn').addEventListener('click', () => {
     const center = map.getCenter();
-
-    // 🚨 저장할 때도 좌표가 엇나가지 않도록 완벽한 '격자 자석 좌표'로 변환해서 보냅니다!
     const snapLat = Math.floor((center.lat() + EPSILON) / GRID_SIZE) * GRID_SIZE;
     const snapLng = Math.floor((center.lng() + EPSILON) / GRID_SIZE) * GRID_SIZE;
 
@@ -773,7 +783,7 @@ document.getElementById('confirmBlueprintBtn').addEventListener('click', () => {
     formData.append("file", bpTempFile);
     formData.append("lat", snapLat);
     formData.append("lng", snapLng);
-    formData.append("scale", bpTempScale); // 방금 맞춘 크기 전송
+    formData.append("scale", bpTempScale);
 
     const saveBtn = document.getElementById('confirmBlueprintBtn');
     saveBtn.innerText = "업로드 중..."; saveBtn.disabled = true;
@@ -786,13 +796,15 @@ document.getElementById('confirmBlueprintBtn').addEventListener('click', () => {
     .then(msg => {
         if (msg === 'SUCCESS' || msg.startsWith('http')) {
             alert("도안 위치와 크기가 완벽하게 저장되었습니다!");
-            bpEditMode = false;
-            document.getElementById('blueprint-edit-ui').classList.add('hidden');
-            checkMyGuildStatus(); // 다시 로드하여 갱신
+            exitBpEditMode(); // 저장 성공 시에도 공통 함수 호출
+            checkMyGuildStatus();
         } else { alert("저장 실패: " + msg); }
     })
     .catch(console.error)
-    .finally(() => { saveBtn.innerText = "이 위치에 저장"; saveBtn.disabled = false; });
+    .finally(() => {
+        saveBtn.innerText = "이 위치에 저장";
+        saveBtn.disabled = false;
+    });
 });
 
 // 🗑️ 5. 도안 삭제 로직 (길드장 전용)
