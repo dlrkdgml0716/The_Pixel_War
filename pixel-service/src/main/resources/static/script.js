@@ -148,48 +148,46 @@ function resizeCanvas() {
 window.addEventListener('resize', resizeCanvas);
 
 function drawPixels() {
-    const projection = map.getProjection();
-    const bounds = map.getBounds();
+    const projection = map.getProjection(), bounds = map.getBounds();
     if (!bounds || !projection) return;
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.imageSmoothingEnabled = false;
+    ctx.imageSmoothingEnabled = true; // 흐릿한 느낌 유지
 
-    const center = map.getCenter();
+    const center = map.getCenter(); // 🚨 현재 지도의 중심 좌표
+    const tlOffset = projection.fromCoordToOffset(new naver.maps.LatLng(bounds.getNE().lat(), bounds.getSW().lng()));
+
+    // 픽셀 크기 계산
     const centerOffset = projection.fromCoordToOffset(center);
     const nextGridOffset = projection.fromCoordToOffset(new naver.maps.LatLng(center.lat() + GRID_SIZE, center.lng() + GRID_SIZE));
-
     const cellW = Math.abs(nextGridOffset.x - centerOffset.x);
     const cellH = Math.abs(nextGridOffset.y - centerOffset.y);
-
-    const tlOffset = projection.fromCoordToOffset(new naver.maps.LatLng(bounds.getNE().lat(), bounds.getSW().lng()));
 
     let bp = null;
     let targetLat, targetLng, targetScale;
 
     if (bpEditMode && bpTempImg.src) {
         bp = bpTempImg;
-        targetLat = editLat;
-        targetLng = editLng;
+        // 🚨 [핵심] 배치 모드일 때는 도안이 지도의 '정중앙 격자'를 계속 따라다닙니다.
+        targetLat = Math.floor((center.lat() + EPSILON) / GRID_SIZE) * GRID_SIZE;
+        targetLng = Math.floor((center.lng() + EPSILON) / GRID_SIZE) * GRID_SIZE;
         targetScale = bpTempScale;
     } else if (guildBlueprint.isVisible && guildBlueprint.img && guildBlueprint.url !== "") {
         bp = guildBlueprint.img;
-        targetLat = guildBlueprint.lat;
-        targetLng = guildBlueprint.lng;
+        targetLat = guildBlueprint.lat; targetLng = guildBlueprint.lng;
         targetScale = 1;
         try {
             const urlObj = new URL(guildBlueprint.url);
-            const scaleParam = urlObj.searchParams.get('scale');
-            if (scaleParam) targetScale = parseInt(scaleParam);
+            const s = urlObj.searchParams.get('scale');
+            if (s) targetScale = parseInt(s);
         } catch(e) {}
     }
 
     if (bp && bp.complete) {
-        // 1:1 매칭 핵심: 이미지 가로픽셀수 * 지도 한 칸 픽셀 크기 * 정수배율
         const imgW = bp.naturalWidth * cellW * targetScale;
         const imgH = bp.naturalHeight * cellH * targetScale;
 
-        // 좌상단 격자 시작점에 정확히 맞춤
+        // 격자 칸에 1:1로 맞추기 위한 좌표 보정
         const startLatLng = new naver.maps.LatLng(targetLat + GRID_SIZE, targetLng);
         const startOffset = projection.fromCoordToOffset(startLatLng);
         const x = startOffset.x - tlOffset.x;
@@ -197,7 +195,17 @@ function drawPixels() {
 
         ctx.save();
         ctx.globalAlpha = bpEditMode ? 0.7 : 0.4;
-        ctx.drawImage(bp, Math.floor(x), Math.floor(y), Math.ceil(imgW), Math.ceil(imgH));
+        ctx.drawImage(bp, x, y, imgW, imgH);
+
+        if (bpEditMode) {
+            // 중앙 십자선 가이드 추가 (맞추기 더 쉽게)
+            ctx.strokeStyle = "lime"; ctx.lineWidth = 2;
+            ctx.strokeRect(x, y, imgW, imgH);
+            ctx.beginPath();
+            ctx.moveTo(canvas.width/2 - 20, canvas.height/2); ctx.lineTo(canvas.width/2 + 20, canvas.height/2);
+            ctx.moveTo(canvas.width/2, canvas.height/2 - 20); ctx.lineTo(canvas.width/2, canvas.height/2 + 20);
+            ctx.stroke();
+        }
         ctx.restore();
     }
 
@@ -599,23 +607,75 @@ window.leaveGuild = () => { if (confirm("탈퇴하시겠습니까?")) fetch('/ap
 document.getElementById('blueprintToggle').addEventListener('change', (e) => { guildBlueprint.isVisible = e.target.checked; scheduleDraw(); });
 
 // 🗺️ 도안 배치 로직
+// 1. 도안 배치 시작 버튼
 document.getElementById('startEditBlueprintBtn').addEventListener('click', () => {
     const fileInput = document.getElementById('blueprintFileInput');
-    if (!fileInput.files[0]) return;
+    if (!fileInput.files[0]) return alert("이미지 파일을 먼저 선택하세요!");
+
+    bpTempFile = fileInput.files[0];
     const reader = new FileReader();
     reader.onload = (e) => {
         bpTempImg.src = e.target.result;
         bpTempImg.onload = () => {
             bpEditMode = true;
-            const center = map.getCenter();
-            editLat = Math.round(center.lat() / GRID_SIZE) * GRID_SIZE;
-            editLng = Math.round(center.lng() / GRID_SIZE) * GRID_SIZE;
+            // 🚨 지도가 움직일 때마다 도안을 다시 그리도록 리스너 등록
+            bpMoveListener = naver.maps.Event.addListener(map, 'center_changed', scheduleDraw);
+
             document.getElementById('guild-modal').classList.add('hidden');
             document.getElementById('blueprint-edit-ui').classList.remove('hidden');
             scheduleDraw();
         };
     };
-    reader.readAsDataURL(fileInput.files[0]);
+    reader.readAsDataURL(bpTempFile);
+});
+
+// 2. 크기 조절 슬라이더
+document.getElementById('blueprintScaleSlider').addEventListener('input', (e) => {
+    bpTempScale = parseInt(e.target.value);
+    document.getElementById('scaleValueDisplay').innerText = bpTempScale + "배";
+    scheduleDraw();
+});
+
+// 3. 최종 저장 버튼 (중복 제거된 단일 버전)
+document.getElementById('confirmBlueprintBtn').addEventListener('click', () => {
+    const center = map.getCenter(); // 🎯 현재 지도의 정중앙 좌표 가져오기
+    const snapLat = Math.floor((center.lat() + EPSILON) / GRID_SIZE) * GRID_SIZE;
+    const snapLng = Math.floor((center.lng() + EPSILON) / GRID_SIZE) * GRID_SIZE;
+
+    const formData = new FormData();
+    formData.append("file", bpTempImg.src === "" ? null : bpTempFile);
+    formData.append("lat", snapLat);
+    formData.append("lng", snapLng);
+    formData.append("scale", bpTempScale);
+
+    const saveBtn = document.getElementById('confirmBlueprintBtn');
+    saveBtn.innerText = "업로드 중..."; saveBtn.disabled = true;
+
+    fetch('/api/guilds/blueprint', {
+        method: 'POST',
+        body: formData
+    })
+    .then(res => res.text())
+    .then(msg => {
+        if (msg === 'SUCCESS' || msg.startsWith('http')) {
+            alert("도안이 지도 중앙 위치에 성공적으로 저장되었습니다!");
+            // 🚨 등록했던 지도 이동 리스너 해제
+            if (bpMoveListener) naver.maps.Event.removeListener(bpMoveListener);
+            exitBpEditMode();
+            checkMyGuildStatus();
+        } else { alert("저장 실패: " + msg); }
+    })
+    .catch(console.error)
+    .finally(() => {
+        saveBtn.innerText = "이 위치에 저장";
+        saveBtn.disabled = false;
+    });
+});
+
+// 4. 배치 취소 버튼
+document.getElementById('cancelBlueprintBtn').addEventListener('click', () => {
+    if (bpMoveListener) naver.maps.Event.removeListener(bpMoveListener);
+    exitBpEditMode();
 });
 
 function exitBpEditMode() {
@@ -625,30 +685,20 @@ function exitBpEditMode() {
     scheduleDraw();
 }
 
-document.getElementById('confirmBlueprintBtn').addEventListener('click', () => {
-    const formData = new FormData();
-    formData.append("file", document.getElementById('blueprintFileInput').files[0]);
-    formData.append("lat", editLat); formData.append("lng", editLng);
-    formData.append("scale", bpTempScale);
-    fetch('/api/guilds/blueprint', { method: 'POST', body: formData }).then(() => exitBpEditMode());
-});
-
-document.getElementById('blueprintScaleSlider').addEventListener('input', (e) => {
-    bpTempScale = parseInt(e.target.value);
-    document.getElementById('scaleValueDisplay').innerText = bpTempScale + "배";
-    scheduleDraw();
-});
-
-document.getElementById('confirmBlueprintBtn').addEventListener('click', () => {
-    const formData = new FormData();
-    formData.append("file", bpTempFile);
-    formData.append("lat", editLat);
-    formData.append("lng", editLng);
-    formData.append("scale", bpTempScale);
-    fetch('/api/guilds/blueprint', { method: 'POST', body: formData })
-    .then(res => res.text()).then(msg => { if (msg === 'SUCCESS' || msg.startsWith('http')) exitBpEditMode(); checkMyGuildStatus(); });
-});
-
+// 5. 도안 삭제 로직 (길드장 전용)
 document.getElementById('deleteBlueprintBtn').addEventListener('click', () => {
-    if (confirm("삭제하시겠습니까?")) fetch('/api/guilds/blueprint', { method: 'DELETE' }).then(() => checkMyGuildStatus());
+    if (!confirm("정말 등록된 길드 도안을 삭제하시겠습니까?")) return;
+
+    fetch('/api/guilds/blueprint', { method: 'DELETE' })
+    .then(res => res.text())
+    .then(msg => {
+        if (msg === 'SUCCESS' || msg === '성공') {
+            alert("도안이 삭제되었습니다.");
+            guildBlueprint.url = "";
+            guildBlueprint.img = null;
+            scheduleDraw();
+            checkMyGuildStatus();
+        } else { alert("삭제 실패: " + msg); }
+    })
+    .catch(console.error);
 });
