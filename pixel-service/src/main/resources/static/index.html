@@ -83,8 +83,9 @@
         <p style="font-size:12px; color:#ccc; margin-bottom:15px;">지도를 움직여 십자선에 위치를 맞추고, 크기를 조절하세요.</p>
 
         <div style="margin-bottom: 15px; display:flex; align-items:center; gap:10px;">
-            <span style="font-size:12px; font-weight:bold;">크기 조절</span>
-            <input type="range" id="blueprintScaleSlider" min="0.001" max="0.5" step="0.001" value="0.05" style="flex:1;">
+            <span style="font-size:12px; font-weight:bold;">크기 배율</span>
+            <input type="range" id="blueprintScaleSlider" min="1" max="5" step="1" value="1" style="flex:1;">
+            <span id="scaleValueDisplay" style="font-size:12px; font-weight:bold; width:30px;">1배</span>
         </div>
 
         <div style="display:flex; gap:10px;">
@@ -147,7 +148,11 @@
 
             <div id="blueprint-setup-area" class="hidden" style="background: rgba(0,0,0,0.3); padding: 10px; border-radius: 8px;">
                 <input type="file" id="blueprintFileInput" accept="image/*" style="width: 100%; margin-bottom: 10px; box-sizing: border-box; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 6px; border-radius: 4px;">
-                <button id="startEditBlueprintBtn" style="width: 100%; background: var(--accent-color); color: white; border: none; padding: 8px; border-radius: 4px; cursor: pointer; font-weight: bold;">🗺️ 지도에서 위치 및 크기 맞추기</button>
+
+                <div style="display: flex; gap: 8px;">
+                    <button id="startEditBlueprintBtn" style="flex: 3; background: var(--accent-color); color: white; border: none; padding: 8px; border-radius: 4px; cursor: pointer; font-weight: bold;">🗺️ 도안 배치 / 변경</button>
+                    <button id="deleteBlueprintBtn" class="hidden" style="flex: 1; background: #ff4757; color: white; border: none; padding: 8px; border-radius: 4px; cursor: pointer; font-weight: bold;">🗑️ 삭제</button>
+                </div>
             </div>
         </div>
 

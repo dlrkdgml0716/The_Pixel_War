@@ -2,13 +2,13 @@ package com.thepixelwar.controller;
 
 import com.thepixelwar.dto.GuildCreateRequest;
 import com.thepixelwar.service.GuildService;
-import com.thepixelwar.service.S3UploadService; // 🚨 추가된 S3 서비스
+import com.thepixelwar.service.S3UploadService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile; // 🚨 추가된 파일 처리 클래스
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Map;
@@ -19,7 +19,7 @@ import java.util.Map;
 public class GuildController {
 
     private final GuildService guildService;
-    private final S3UploadService s3UploadService; // 🚨 S3 업로드 공장 주입!
+    private final S3UploadService s3UploadService;
 
     @PostMapping
     public ResponseEntity<String> createGuild(@RequestBody GuildCreateRequest request, @AuthenticationPrincipal OAuth2User principal) {
@@ -43,31 +43,40 @@ public class GuildController {
         return ResponseEntity.ok(guildService.leaveGuild(principal.getName()));
     }
 
-    // 🗺️ [수정됨] 청사진(도안) 업데이트 API - S3 업로드 적용!
-    // JSON이 아닌 폼 데이터(FormData) 형식으로 파일과 좌표를 받습니다.
+    // 🗺️ 청사진 업데이트 API (크기 조절 scale 포함)
     @PostMapping("/blueprint")
     public ResponseEntity<String> updateBlueprint(
             @RequestParam("file") MultipartFile file,
             @RequestParam("lat") Double lat,
             @RequestParam("lng") Double lng,
-            @RequestParam(value = "scale", defaultValue = "0.05") Double scale, // 🚨 크기(scale) 값 받기 추가!
+            @RequestParam(value = "scale", defaultValue = "1") Double scale,
             @AuthenticationPrincipal OAuth2User principal) {
 
         if (principal == null) return ResponseEntity.status(401).body("로그인 필요");
 
         try {
             String s3Url = s3UploadService.uploadBlueprint(file);
-
-            // 🚨 S3 URL 뒤에 몰래 크기 정보를 꼬리표처럼 붙여줍니다. (?scale=0.05)
-            // 이러면 굳이 데이터베이스(DB) 구조를 바꾸지 않아도 크기를 영구 저장할 수 있습니다!
             String finalUrl = s3Url + "?scale=" + scale;
-
             String result = guildService.updateBlueprint(principal.getName(), finalUrl, lat, lng);
             return ResponseEntity.ok(result);
-
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.internalServerError().body("이미지 업로드 중 오류가 발생했습니다.");
+        }
+    }
+
+    // 🗑️ [신규] 청사진 삭제 API (길드장 전용)
+    @DeleteMapping("/blueprint")
+    public ResponseEntity<String> deleteBlueprint(@AuthenticationPrincipal OAuth2User principal) {
+        if (principal == null) return ResponseEntity.status(401).body("로그인 필요");
+
+        try {
+            // DB의 url, lat, lng를 비워버립니다 (0.0 좌표와 빈 문자열)
+            String result = guildService.updateBlueprint(principal.getName(), "", 0.0, 0.0);
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.internalServerError().body("도안 삭제 중 오류가 발생했습니다.");
         }
     }
 
