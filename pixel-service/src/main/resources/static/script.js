@@ -526,7 +526,7 @@ function checkMyGuildStatus() {
                 const setupArea = document.getElementById('blueprint-setup-area');
                 if (data.isMaster) {
                     setupArea.classList.remove('hidden');
-                    document.getElementById('blueprintUrlInput').value = data.blueprintUrl || "";
+                    // 파일 업로드 창은 이전 URL을 표시할 수 없으므로 비워둡니다.
                     document.getElementById('blueprintLatInput').value = data.blueprintLat || "";
                     document.getElementById('blueprintLngInput').value = data.blueprintLng || "";
                 } else {
@@ -541,8 +541,8 @@ function checkMyGuildStatus() {
 
                     const img = document.getElementById('blueprintImage');
 
-                    // 🔥 [수정됨] wsrv.nl 프록시를 사용하여 CORS 에러를 막고, 너비(w)를 100px로 줄입니다!
-                    img.src = `https://wsrv.nl/?url=${encodeURIComponent(data.blueprintUrl)}&w=100`;
+                    // 🚨 [수정됨] 프록시 제거! S3 URL 직통 연결!
+                    img.src = data.blueprintUrl;
 
                     img.onload = () => {
                         guildBlueprint.img = img;
@@ -666,28 +666,53 @@ document.getElementById('blueprintToggle').addEventListener('change', (e) => {
     scheduleDraw(); // 켜고 끌 때마다 화면 갱신
 });
 
-// 🗺️ 길드장 청사진 저장 로직
+// 🚨 [수정됨] 🗺️ 길드장 청사진 S3 업로드 저장 로직 (FormData 사용)
 document.getElementById('saveBlueprintBtn').addEventListener('click', () => {
-    const url = document.getElementById('blueprintUrlInput').value;
+    const fileInput = document.getElementById('blueprintFileInput');
     const lat = document.getElementById('blueprintLatInput').value;
     const lng = document.getElementById('blueprintLngInput').value;
 
-    if (!url) { alert("이미지 URL을 입력해주세요."); return; }
-    if (!lat || !lng) { alert("좌표를 입력해주세요."); return; }
+    // 예외 처리 (파일과 좌표가 있는지 검사)
+    if (!fileInput.files || fileInput.files.length === 0) {
+        alert("업로드할 도안 이미지를 선택해주세요.");
+        return;
+    }
+    if (!lat || !lng) {
+        alert("도안이 위치할 좌표(위도, 경도)를 입력해주세요.");
+        return;
+    }
+
+    // 파일 전송을 위한 폼 데이터 객체 생성
+    const formData = new FormData();
+    formData.append("file", fileInput.files[0]); // 컨트롤러의 @RequestParam("file")과 일치해야 함
+    formData.append("lat", parseFloat(lat));
+    formData.append("lng", parseFloat(lng));
+
+    // 버튼 비활성화 (업로드 중 중복 클릭 방지)
+    const saveBtn = document.getElementById('saveBlueprintBtn');
+    saveBtn.innerText = "업로드 중...";
+    saveBtn.disabled = true;
 
     fetch('/api/guilds/blueprint', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: url, lat: parseFloat(lat), lng: parseFloat(lng) })
+        // 주의: FormData를 사용할 때는 Content-Type을 수동으로 설정하지 않습니다! (브라우저가 자동 설정)
+        body: formData
     })
     .then(res => res.text())
     .then(msg => {
-        if (msg === 'SUCCESS') {
-            alert("도안이 저장되어 길드원들에게 공유됩니다!");
-            checkMyGuildStatus(); // 저장 후 내 정보 다시 로드 (화면 반영)
+        if (msg === 'SUCCESS' || msg.startsWith('http')) {
+            alert("도안이 성공적으로 S3에 업로드되어 길드원들과 공유됩니다!");
+            checkMyGuildStatus(); // 다시 정보를 불러와서 지도에 즉시 렌더링
         } else {
             alert("저장 실패: " + msg);
         }
     })
-    .catch(console.error);
+    .catch(err => {
+        console.error(err);
+        alert("업로드 중 네트워크 오류가 발생했습니다.");
+    })
+    .finally(() => {
+        saveBtn.innerText = "도안 저장 (길드장 전용)";
+        saveBtn.disabled = false;
+    });
 });

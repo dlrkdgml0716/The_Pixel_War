@@ -2,11 +2,13 @@ package com.thepixelwar.controller;
 
 import com.thepixelwar.dto.GuildCreateRequest;
 import com.thepixelwar.service.GuildService;
+import com.thepixelwar.service.S3UploadService; // 🚨 추가된 S3 서비스
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile; // 🚨 추가된 파일 처리 클래스
 
 import java.util.List;
 import java.util.Map;
@@ -17,6 +19,7 @@ import java.util.Map;
 public class GuildController {
 
     private final GuildService guildService;
+    private final S3UploadService s3UploadService; // 🚨 S3 업로드 공장 주입!
 
     @PostMapping
     public ResponseEntity<String> createGuild(@RequestBody GuildCreateRequest request, @AuthenticationPrincipal OAuth2User principal) {
@@ -40,19 +43,29 @@ public class GuildController {
         return ResponseEntity.ok(guildService.leaveGuild(principal.getName()));
     }
 
-    // 🗺️ [신규] 청사진 업데이트 API
+    // 🗺️ [수정됨] 청사진(도안) 업데이트 API - S3 업로드 적용!
+    // JSON이 아닌 폼 데이터(FormData) 형식으로 파일과 좌표를 받습니다.
     @PostMapping("/blueprint")
-    public ResponseEntity<String> updateBlueprint(@RequestBody Map<String, Object> body,
-                                                  @AuthenticationPrincipal OAuth2User principal) {
+    public ResponseEntity<String> updateBlueprint(
+            @RequestParam("file") MultipartFile file,   // 1. 프론트에서 보낸 파일
+            @RequestParam("lat") Double lat,            // 2. 위도
+            @RequestParam("lng") Double lng,            // 3. 경도
+            @AuthenticationPrincipal OAuth2User principal) {
+
         if (principal == null) return ResponseEntity.status(401).body("로그인 필요");
 
-        String url = (String) body.get("url");
-        // JSON 숫자는 Double로 바로 안 올 수도 있어서 안전하게 변환
-        Double lat = Double.valueOf(body.get("lat").toString());
-        Double lng = Double.valueOf(body.get("lng").toString());
+        try {
+            // 1. 파일을 S3에 업로드하고, 영구적인 인터넷 URL을 발급받습니다.
+            String s3Url = s3UploadService.uploadBlueprint(file);
 
-        String result = guildService.updateBlueprint(principal.getName(), url, lat, lng);
-        return ResponseEntity.ok(result);
+            // 2. 기존 길드 서비스에 S3 URL과 좌표를 넘겨 DB에 저장합니다.
+            String result = guildService.updateBlueprint(principal.getName(), s3Url, lat, lng);
+            return ResponseEntity.ok(result);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.internalServerError().body("이미지 업로드 중 오류가 발생했습니다: " + e.getMessage());
+        }
     }
 
     @GetMapping("/my")
