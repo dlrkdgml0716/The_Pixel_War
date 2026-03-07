@@ -44,17 +44,22 @@ public class PixelService {
      * 1. 픽셀 찍기 (쓰기)
      */
     public String updatePixel(PixelRequest request) {
-        // 좌표 계산 (비즈니스 로직 유지)
+        String userId = request.userId();
+
+        // 1. [DB 조회] 해당 유저의 마지막 픽셀 설치 시간 조회
+        PixelEntity lastPixel = pixelRepository.findTopByUserIdOrderByCreatedAtDesc(userId);
+        if (lastPixel != null && lastPixel.getCreatedAt().isAfter(LocalDateTime.now().minusSeconds(5))) {
+            return "쿨타임 중";
+        }
+
         int x = (int) Math.floor((request.lat() + EPSILON) / GRID_SIZE);
         int y = (int) Math.floor((request.lng() + EPSILON) / GRID_SIZE);
 
         try {
-            // [변경] Redis/Kafka 없이 즉시 DB 저장
-            PixelEntity entity = new PixelEntity(x, y, request.color(), request.userId());
-            pixelRepository.save(entity);
+            // 2. [DB 저장]
+            pixelRepository.save(new PixelEntity(x, y, request.color(), userId));
             return "성공";
         } catch (Exception e) {
-            log.error("DB 저장 에러", e);
             return "실패";
         }
     }
