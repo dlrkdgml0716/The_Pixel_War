@@ -44,67 +44,19 @@ public class PixelService {
      * 1. 픽셀 찍기 (쓰기)
      */
     public String updatePixel(PixelRequest request) {
-        String userId = request.userId();
-
-        // 쿨타임 체크
-        String cooldownKey = "cooldown:" + userId;
-        Long remainingTime = redisTemplate.getExpire(cooldownKey, TimeUnit.SECONDS);
-
-        if (remainingTime != null && remainingTime > 0) {
-            return "쿨타임이 " + remainingTime + "초 남았습니다!";
-        }
-
-        // 좌표 계산
+        // 좌표 계산 (비즈니스 로직 유지)
         int x = (int) Math.floor((request.lat() + EPSILON) / GRID_SIZE);
         int y = (int) Math.floor((request.lng() + EPSILON) / GRID_SIZE);
 
-        double snappedLat = x * GRID_SIZE;
-        double snappedLng = y * GRID_SIZE;
-
-        PixelRequest snappedRequest = new PixelRequest(snappedLat, snappedLng, request.color(), request.userId());
-
-        // 락 획득
-        String lockKey = "pixel:lock:" + x + ":" + y;
-        RLock lock = redissonClient.getLock(lockKey);
-
         try {
-            if (lock.tryLock(5, 2, TimeUnit.SECONDS)) {
-                try {
-                    // Redis 저장
-                    String pixelKey = "pixel:" + x + ":" + y;
-                    redisTemplate.opsForValue().set(pixelKey, snappedRequest.color());
-
-                    // 🔥 [히트맵 추가] 1. 해당 좌표의 점수를 1점 올립니다.
-                    // Key 포맷: heatmap:yyyyMMdd:HH (1시간 단위로 새로운 히트맵 생성)
-                    String heatmapKey = "heatmap:" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd:HH"));
-                    String member = x + ":" + y; // "1234:5678" 형태의 좌표
-
-                    // ZINCRBY: 점수 +1 증가 (데이터가 없으면 자동 생성)
-                    redisTemplate.opsForZSet().incrementScore(heatmapKey, member, 1);
-                    // 데이터가 너무 오래 쌓이지 않게 2시간 뒤 자동 삭제
-                    redisTemplate.expire(heatmapKey, 2, TimeUnit.HOURS);
-
-                    // Kafka 전송
-                    String message = objectMapper.writeValueAsString(snappedRequest);
-                    kafkaTemplate.send("pixel-updates", message);
-
-                    // 쿨타임 설정
-                    redisTemplate.opsForValue().set(cooldownKey, "active", Duration.ofSeconds(COOLDOWN_SECONDS));
-
-                    return "성공";
-                } catch (JsonProcessingException e) {
-                    log.error("JSON 에러", e);
-                } finally {
-                    if (lock.isHeldByCurrentThread()) lock.unlock();
-                }
-            } else {
-                return "다른 사람이 작업 중입니다.";
-            }
-        } catch (InterruptedException e) {
-            log.error("락 에러", e);
-            Thread.currentThread().interrupt();
+            // [변경] Redis/Kafka 없이 즉시 DB 저장
+            PixelEntity entity = new PixelEntity(x, y, request.color(), request.userId());
+            pixelRepository.save(entity);
+            return "성공";
+        } catch (Exception e) {
+            log.error("DB 저장 에러", e);
+            return "실패";
         }
-        return "실패";
     }
 
     /**
