@@ -1,10 +1,11 @@
 import http from 'k6/http';
 import { sleep, check } from 'k6';
 
-export const options = {
-  vus: 10,
-  duration: '10s',
-};
+stages: [
+    { duration: '30s', target: 20 }, // 30초 동안 20명까지 서서히 증가 (Warm-up)
+    { duration: '1m', target: 50 },  // 1분 동안 50명 유지 (본격적인 측정 구간)
+    { duration: '30s', target: 0 },  // 30초 동안 다시 0명으로 감소 (Cool-down)
+  ],
 
 export default function () {
   // 1. 요청할 URL (본인의 Controller에 설정된 픽셀 작성 엔드포인트)
