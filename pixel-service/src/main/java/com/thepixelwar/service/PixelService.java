@@ -46,9 +46,9 @@ public class PixelService {
     public String updatePixel(PixelRequest request) {
         String userId = request.userId();
 
-        // 1. [DB 조회] 해당 유저의 마지막 픽셀 설치 시간 조회
-        PixelEntity lastPixel = pixelRepository.findTopByUserIdOrderByCreatedAtDesc(userId);
-        if (lastPixel != null && lastPixel.getCreatedAt().isAfter(LocalDateTime.now().minusSeconds(5))) {
+        // 1. [Redis 조회] 쿨타임 체크 (DB 부하 감소의 핵심)
+        String cooldownKey = "cooldown:" + userId;
+        if (Boolean.TRUE.equals(redisTemplate.hasKey(cooldownKey))) {
             return "쿨타임 중";
         }
 
@@ -56,8 +56,11 @@ public class PixelService {
         int y = (int) Math.floor((request.lng() + EPSILON) / GRID_SIZE);
 
         try {
-            // 2. [DB 저장]
+            // 2. [DB 저장] 아직 저장은 동기식으로 DB에 직접 수행
             pixelRepository.save(new PixelEntity(x, y, request.color(), userId));
+
+            // 3. [Redis 쓰기] 쿨타임 설정
+            redisTemplate.opsForValue().set(cooldownKey, "active", Duration.ofSeconds(5));
             return "성공";
         } catch (Exception e) {
             return "실패";

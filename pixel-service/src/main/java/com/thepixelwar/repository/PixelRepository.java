@@ -48,7 +48,7 @@ public class PixelRepository {
                 .getResultList();
     }
     
-    //성능 테스트를 위한 함수
+    //성능 테스트를 위해 추가된 함수
     public PixelEntity findTopByUserIdOrderByCreatedAtDesc(String userId) {
         return em.createQuery(
                         "select p from PixelEntity p where p.userId = :userId order by p.id desc", PixelEntity.class)

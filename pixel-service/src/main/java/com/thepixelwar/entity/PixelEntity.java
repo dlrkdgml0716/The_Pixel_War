@@ -16,7 +16,7 @@ public class PixelEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    private LocalDateTime createdAt;
+    private LocalDateTime createdAt; // 성능 테스트를 위해 추가된 변수
     private int x;
     private int y;
     private String color;
