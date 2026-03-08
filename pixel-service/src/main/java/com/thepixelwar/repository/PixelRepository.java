@@ -49,14 +49,14 @@ public class PixelRepository {
     }
     
     //성능 테스트를 위해 추가된 함수
-    public PixelEntity findTopByUserIdOrderByCreatedAtDesc(String userId) {
-        return em.createQuery(
-                        "select p from PixelEntity p where p.userId = :userId order by p.id desc", PixelEntity.class)
-                .setParameter("userId", userId)
-                .setFirstResult(0) // 0번째부터
-                .setMaxResults(1)  // 딱 1개만 (가장 최근 것)
-                .getResultStream()
-                .findFirst()
-                .orElse(null);
-    }
+//    public PixelEntity findTopByUserIdOrderByCreatedAtDesc(String userId) {
+//        return em.createQuery(
+//                        "select p from PixelEntity p where p.userId = :userId order by p.id desc", PixelEntity.class)
+//                .setParameter("userId", userId)
+//                .setFirstResult(0) // 0번째부터
+//                .setMaxResults(1)  // 딱 1개만 (가장 최근 것)
+//                .getResultStream()
+//                .findFirst()
+//                .orElse(null);
+//    }
 }
