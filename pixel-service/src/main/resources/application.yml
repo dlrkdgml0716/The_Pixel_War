@@ -1,4 +1,6 @@
 spring:
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:local}
   datasource:
     url: jdbc:mysql://mysql:3306/pixelwar?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
     username: root
@@ -31,8 +33,8 @@ spring:
       client:
         registration:
           kakao:
-            client-id: 944af284cbb6d82f6bf6a95b4100425a
-            client-secret: 98NerSFw7JRGpfGU4VVFfcuukBiqN2AY
+            client-id: ${KAKAO_CLIENT_ID}
+            client-secret: ${KAKAO_CLIENT_SECRET}
             client-authentication-method: client_secret_post
             authorization-grant-type: authorization_code
             redirect-uri: "http://13.124.236.83:8080/login/oauth2/code/kakao"

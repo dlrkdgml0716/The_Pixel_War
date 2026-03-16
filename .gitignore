@@ -4,6 +4,9 @@ build/
 !**/src/main/**/build/
 !**/src/test/**/build/
 .kotlin
+.env
+**/application-local.yml
+pixel-service/build/
 
 ### IntelliJ IDEA ###
 .idea/modules.xml
