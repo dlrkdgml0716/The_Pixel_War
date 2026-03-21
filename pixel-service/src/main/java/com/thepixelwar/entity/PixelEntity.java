@@ -4,11 +4,14 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-
-import java.time.LocalDateTime;
+import jakarta.persistence.Index;
 
 @Entity
-@Table(name = "pixels")
+@Table(name = "pixels",
+        indexes = {
+                @Index(name = "idx_pixel_coords", columnList = "x,y", unique = true)
+        }
+)
 @Getter @Setter
 @NoArgsConstructor
 public class PixelEntity {
