@@ -63,14 +63,26 @@ function fetchRanks() {
             }
             data.forEach(r => {
                 const rankClass = r.rank <= 3 ? `rank-${r.rank}` : '';
-                const html = `
-                    <div class="rank-item">
-                        <span class="rank-num ${rankClass}">${r.rank}</span>
-                        <span class="rank-name">${r.nickname}</span>
-                        <span class="rank-score">${r.score}</span>
-                    </div>
-                `;
-                list.innerHTML += html;
+
+                const item = document.createElement('div');
+                item.className = 'rank-item';
+
+                const numSpan = document.createElement('span');
+                numSpan.className = `rank-num ${rankClass}`;
+                numSpan.textContent = r.rank;
+
+                const nameSpan = document.createElement('span');
+                nameSpan.className = 'rank-name';
+                nameSpan.textContent = r.nickname; // ✅ XSS 방어
+
+                const scoreSpan = document.createElement('span');
+                scoreSpan.className = 'rank-score';
+                scoreSpan.textContent = r.score;
+
+                item.appendChild(numSpan);
+                item.appendChild(nameSpan);
+                item.appendChild(scoreSpan);
+                list.appendChild(item);
             });
         })
         .catch(console.error);
@@ -154,12 +166,11 @@ function drawPixels() {
     if (!bounds || !projection) return;
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.imageSmoothingEnabled = true; // 흐릿한 느낌 유지
+    ctx.imageSmoothingEnabled = true;
 
-    const center = map.getCenter(); // 🚨 현재 지도의 중심 좌표
+    const center = map.getCenter();
     const tlOffset = projection.fromCoordToOffset(new naver.maps.LatLng(bounds.getNE().lat(), bounds.getSW().lng()));
 
-    // 픽셀 크기 계산
     const centerOffset = projection.fromCoordToOffset(center);
     const nextGridOffset = projection.fromCoordToOffset(new naver.maps.LatLng(center.lat() + GRID_SIZE, center.lng() + GRID_SIZE));
     const cellW = Math.abs(nextGridOffset.x - centerOffset.x);
@@ -171,26 +182,18 @@ function drawPixels() {
     if (bpEditMode && bpTempImg.src) {
             bp = bpTempImg;
 
-            // 🚨 [핵심 수정] 이미지 중앙 정렬을 위한 오프셋 계산
-            // 1. 이미지의 총 격자 크기 계산 (픽셀 수 * 배율)
             const gridsWide = bpTempImg.naturalWidth * bpTempScale;
             const gridsHigh = bpTempImg.naturalHeight * bpTempScale;
 
-            // 2. 절반 크기만큼 보정할 위도/경도 값 계산 (GRID_SIZE 단위)
-            // 위도(Lat)는 북쪽이 +, 남쪽이 - 이므로 높이 절반만큼 뺍니다 (남쪽으로 이동시켜 기준점 잡기)
             const latShift = (gridsHigh / 2) * GRID_SIZE;
-            // 경도(Lng)는 동쪽이 +, 서쪽이 - 이므로 너비 절반만큼 뺍니다 (서쪽으로 이동시켜 기준점 잡기)
             const lngShift = (gridsWide / 2) * GRID_SIZE;
 
-            // 3. 지도 중앙에서 계산된 오프셋만큼 이동한 좌표를 기준으로 스냅(Snap)
             const adjustedCenterLat = center.lat() + latShift;
             const adjustedCenterLng = center.lng() - lngShift;
 
-            // 4. 계산된 좌표를 전역 변수에 저장 (저장 버튼에서 사용하기 위함)
             currentBpLat = Math.floor((adjustedCenterLat + EPSILON) / GRID_SIZE) * GRID_SIZE;
             currentBpLng = Math.floor((adjustedCenterLng + EPSILON) / GRID_SIZE) * GRID_SIZE;
 
-            // 5. 그리기 타겟 좌표 설정
             targetLat = currentBpLat;
             targetLng = currentBpLng;
             targetScale = bpTempScale;
@@ -210,7 +213,6 @@ function drawPixels() {
         const imgW = bp.naturalWidth * cellW * targetScale;
         const imgH = bp.naturalHeight * cellH * targetScale;
 
-        // 격자 칸에 1:1로 맞추기 위한 좌표 보정
         const startLatLng = new naver.maps.LatLng(targetLat + GRID_SIZE, targetLng);
         const startOffset = projection.fromCoordToOffset(startLatLng);
         const x = startOffset.x - tlOffset.x;
@@ -221,7 +223,6 @@ function drawPixels() {
         ctx.drawImage(bp, x, y, imgW, imgH);
 
         if (bpEditMode) {
-            // 중앙 십자선 가이드 추가 (맞추기 더 쉽게)
             ctx.strokeStyle = "lime"; ctx.lineWidth = 2;
             ctx.strokeRect(x, y, imgW, imgH);
             ctx.beginPath();
@@ -325,10 +326,19 @@ function appendChatMessage(message) {
     const msgDiv = document.createElement('div');
     if (message.type === 'ENTER') {
         msgDiv.className = 'msg-system';
-        msgDiv.innerText = message.message;
+        msgDiv.textContent = message.message; // ✅ XSS 방어
     } else {
         msgDiv.className = 'msg-item';
-        msgDiv.innerHTML = `<span class="msg-sender">${message.sender}:</span><span class="msg-text">${message.message}</span>`;
+        const senderSpan = document.createElement('span');
+        senderSpan.className = 'msg-sender';
+        senderSpan.textContent = message.sender + ':'; // ✅ XSS 방어
+
+        const textSpan = document.createElement('span');
+        textSpan.className = 'msg-text';
+        textSpan.textContent = message.message; // ✅ XSS 방어
+
+        msgDiv.appendChild(senderSpan);
+        msgDiv.appendChild(textSpan);
     }
     chatBox.appendChild(msgDiv);
     chatBox.scrollTop = chatBox.scrollHeight;
@@ -458,7 +468,7 @@ fetch('/api/user/me').then(res => res.ok ? res.json() : Promise.reject()).then(u
     isLoggedIn = true; myNickname = user.nickname || "User";
     document.getElementById('login-area').classList.add('hidden');
     document.getElementById('user-info').classList.remove('hidden');
-    document.getElementById('nickname-display').innerText = myNickname;
+    document.getElementById('nickname-display').textContent = myNickname; // ✅ XSS 방어
     document.getElementById('chatInput').disabled = false;
     document.getElementById('chatSendBtn').disabled = false;
     if(stompClient && stompClient.connected) { sendChatMessage('ENTER', ''); }
@@ -551,10 +561,10 @@ function checkMyGuildStatus() {
             } else {
                 document.getElementById('view-no-guild').classList.add('hidden');
                 document.getElementById('view-has-guild').classList.remove('hidden');
-                document.getElementById('my-guild-name').innerText = data.name;
-                document.getElementById('my-guild-desc').innerText = data.description;
-                document.getElementById('my-guild-master').innerText = data.masterName + (data.isMaster ? " (나)" : "");
-                document.getElementById('my-guild-count').innerText = `${data.memberCount} / ${data.maxMembers}`;
+                document.getElementById('my-guild-name').textContent = data.name; // ✅ XSS 방어
+                document.getElementById('my-guild-desc').textContent = data.description; // ✅ XSS 방어
+                document.getElementById('my-guild-master').textContent = data.masterName + (data.isMaster ? " (나)" : ""); // ✅ XSS 방어
+                document.getElementById('my-guild-count').textContent = `${data.memberCount} / ${data.maxMembers}`;
 
                 if (data.isMaster) {
                     document.getElementById('blueprint-setup-area').classList.remove('hidden');
@@ -581,9 +591,33 @@ function loadGuildList() {
         container.innerHTML = '';
         if (data.length === 0) { container.innerHTML = '생성된 길드가 없습니다.'; return; }
         data.forEach(g => {
-            const div = document.createElement('div'); div.className = 'guild-item';
-            const btnHtml = g.memberCount >= g.maxMembers ? `<button class="btn-join disabled" disabled>만원</button>` : `<button class="btn-join" onclick="joinGuild(${g.id})">가입</button>`;
-            div.innerHTML = `<div class="g-info"><span class="g-name">${g.name}</span><div class="g-desc">${g.description} • ${g.memberCount}/${g.maxMembers}명</div></div>${btnHtml}`;
+            const div = document.createElement('div');
+            div.className = 'guild-item';
+
+            const infoDiv = document.createElement('div');
+            infoDiv.className = 'g-info';
+
+            const nameSpan = document.createElement('span');
+            nameSpan.className = 'g-name';
+            nameSpan.textContent = g.name; // ✅ XSS 방어
+
+            const descDiv = document.createElement('div');
+            descDiv.className = 'g-desc';
+            descDiv.textContent = `${g.description} • ${g.memberCount}/${g.maxMembers}명`; // ✅ XSS 방어
+
+            infoDiv.appendChild(nameSpan);
+            infoDiv.appendChild(descDiv);
+
+            // 버튼은 유저 입력값 없으므로 innerHTML 사용 가능
+            const btnDiv = document.createElement('div');
+            if (g.memberCount >= g.maxMembers) {
+                btnDiv.innerHTML = `<button class="btn-join disabled" disabled>만원</button>`;
+            } else {
+                btnDiv.innerHTML = `<button class="btn-join" onclick="joinGuild(${g.id})">가입</button>`;
+            }
+
+            div.appendChild(infoDiv);
+            div.appendChild(btnDiv);
             container.appendChild(div);
         });
     });
@@ -613,7 +647,6 @@ document.getElementById('startEditBlueprintBtn').addEventListener('click', () =>
         bpTempImg.src = e.target.result;
         bpTempImg.onload = () => {
             bpEditMode = true;
-            // 🚨 지도가 움직일 때마다 도안을 다시 그리도록 리스너 등록
             bpMoveListener = naver.maps.Event.addListener(map, 'center_changed', scheduleDraw);
 
             document.getElementById('guild-modal').classList.add('hidden');
@@ -631,9 +664,8 @@ document.getElementById('blueprintScaleSlider').addEventListener('input', (e) =>
     scheduleDraw();
 });
 
-// 3. 최종 저장 버튼 (중복 제거된 단일 버전)
+// 3. 최종 저장 버튼
 document.getElementById('confirmBlueprintBtn').addEventListener('click', () => {
-    // 🎯 방금 drawPixels()에서 계산해둔 중앙 정렬 좌표를 그대로 가져옵니다.
     const snapLat = currentBpLat;
     const snapLng = currentBpLng;
 
@@ -654,7 +686,6 @@ document.getElementById('confirmBlueprintBtn').addEventListener('click', () => {
     .then(msg => {
         if (msg === 'SUCCESS' || msg.startsWith('http')) {
             alert("도안이 지도 중앙 위치에 성공적으로 저장되었습니다!");
-            // 🚨 등록했던 지도 이동 리스너 해제
             if (bpMoveListener) naver.maps.Event.removeListener(bpMoveListener);
             exitBpEditMode();
             checkMyGuildStatus();
