@@ -1,9 +1,11 @@
 package com.thepixelwar.controller;
 
+import com.thepixelwar.dto.CustomUserDetails;
 import com.thepixelwar.dto.PixelRequest;
 import com.thepixelwar.service.PixelService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -16,8 +18,10 @@ public class PixelController {
     private final PixelService pixelService; // 의존성 주입
 
     @PostMapping // http 메서드 post만 처리
-    public String updatePixel(@RequestBody PixelRequest request) { // 받은 요청을 PixelRequest 객체로 변환
-        return pixelService.updatePixel(request); // 서비스로직의 업데이트 픽셀 함수 호출
+    public String updatePixel(@RequestBody PixelRequest request,
+                              @AuthenticationPrincipal CustomUserDetails principal) { // 받은 요청을 PixelRequest 객체로 변환
+        String userId = principal.getNickname(); // ✅ 서버에서 추출
+        return pixelService.updatePixel(request, userId); // userId 별도로 전달
     }
     @GetMapping("/{x}/{y}")
     public String getPixel(@PathVariable int x, @PathVariable int y) {

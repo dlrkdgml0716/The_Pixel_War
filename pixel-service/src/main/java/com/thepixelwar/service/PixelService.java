@@ -42,9 +42,7 @@ public class PixelService {
     /**
      * 1. 픽셀 찍기 (쓰기)
      */
-    public String updatePixel(PixelRequest request) {
-        String userId = request.userId();
-
+    public String updatePixel(PixelRequest request, String userId) {
         // 쿨타임 체크
         String cooldownKey = "cooldown:" + userId;
         Long remainingTime = redisTemplate.getExpire(cooldownKey, TimeUnit.SECONDS);
@@ -60,7 +58,7 @@ public class PixelService {
         double snappedLat = x * GRID_SIZE;
         double snappedLng = y * GRID_SIZE;
 
-        PixelRequest snappedRequest = new PixelRequest(snappedLat, snappedLng, request.color(), request.userId());
+        PixelRequest snappedRequest = new PixelRequest(snappedLat, snappedLng, request.color(), userId);
 
         // 락 획득
         String lockKey = "pixel:lock:" + x + ":" + y;
