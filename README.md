@@ -38,8 +38,8 @@ graph TD
     %% Infrastructure
     subgraph Infrastructure [Infrastructure]
         subgraph RedisStore [Redis]
-            RedisPixel[(pixel:{x}:{y}\nCurrent Color)]
-            RedisCooldown[(cooldown:{userId}\nTTL 5s)]
+            RedisPixel[(pixel:x:y\nCurrent Color)]
+            RedisCooldown[(cooldown:userId\nTTL 5s)]
             RedisRank[(pixel-war:ranking\nZSET Leaderboard)]
             RedisHeatmap[(heatmap:yyyyMMdd:HH\nZSET Hot Pixels)]
         end
