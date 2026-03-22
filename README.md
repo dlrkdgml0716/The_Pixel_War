@@ -6,61 +6,76 @@ The Pixel War
 ```mermaid
 graph TD
     %% Client Layer
-    subgraph ClientLayer [Real-time Client]
-        Web[Web Browser - Canvas/WebGL]
-        Mobile[Mobile App - Native View]
+    subgraph ClientLayer [Client]
+        Web[Web Browser\nNaver Maps + HTML5 Canvas\nSockJS / STOMP]
     end
 
-    %% Gateway & Real-time Sync
-    subgraph TrafficControl [Gateway & Broadcast]
-        AGW[Spring Cloud Gateway]
-        NetFunnel[Virtual Waiting Room - Redis ZSET]
-        RedisPubSub((Redis Pub/Sub: Real-time Update))
-    end
-
-    %% Microservices Layer
-    subgraph Microservices [Core Business Logic - Java/Spring]
+    %% Spring Boot Monolith
+    subgraph AppServer [Spring Boot Application - pixel-service]
         direction TB
-        
-        subgraph PixelDomain [Pixel Domain]
-            PixelSvc[Pixel Core: Java + Redisson Lock]
-            PixelRedis[(Pixel Redis: State Store)]
-        end
-        
-        subgraph SpatialDomain [Spatial Domain]
-            SpatialSvc[Spatial: Java + S2/H3]
-            SpatialDB[(Spatial DB: MySQL)]
+
+        subgraph APILayer [REST API Layer]
+            PixelCtrl[PixelController\nPOST /api/pixels\nGET /api/pixels]
+            GuildCtrl[GuildController]
+            RankCtrl[RankController]
         end
 
-        subgraph PersistenceWorker [Persistence Layer]
-            DBWriter[Async DB Writer: Java]
-            MainDB[(Main DB: MySQL Cluster)]
+        subgraph BusinessLogic [Business Logic]
+            PixelSvc[PixelService\nCooldown Check\nRedisson Distributed Lock\nGrid Coordinate Snap]
+            GuildSvc[GuildService]
+            RankSvc[RankingService]
+        end
+
+        subgraph RealtimeLayer [Real-time Layer]
+            WSBroker[WebSocket Broker\nSTOMP /ws-pixel\n/sub/pixel]
+        end
+
+        subgraph ConsumerLayer [Kafka Consumer]
+            PixelConsumer[PixelConsumer\n1. Update Ranking ZSET\n2. Persist to MySQL\n3. Broadcast via WebSocket]
         end
     end
 
     %% Infrastructure
-    subgraph MessageBroker [Event Bus]
-        Kafka[[Apache Kafka]]
+    subgraph Infrastructure [Infrastructure]
+        subgraph RedisStore [Redis]
+            RedisPixel[(pixel:{x}:{y}\nCurrent Color)]
+            RedisCooldown[(cooldown:{userId}\nTTL 5s)]
+            RedisRank[(pixel-war:ranking\nZSET Leaderboard)]
+            RedisHeatmap[(heatmap:yyyyMMdd:HH\nZSET Hot Pixels)]
+        end
+
+        Kafka[[Apache Kafka\npixel-updates topic]]
+
+        MySQL[(MySQL\npixels / users\nguilds / members)]
+
+        S3[(AWS S3\nGuild Blueprints)]
     end
 
-    %% Relationships & Flow
-    ClientLayer <--> |WebSocket| AGW
-    AGW --> NetFunnel
-    NetFunnel --> PixelSvc
-    
-    %% Write Path (Java + Redisson)
-    PixelSvc --- |Distributed Lock| PixelRedis
-    PixelSvc -.-> |1. Broadcast| RedisPubSub
-    RedisPubSub -.-> |2. Push| AGW
-    
-    %% Persistence Path (EDA)
-    PixelSvc -.-> |3. PixelCaptured Event| Kafka
-    Kafka -.-> DBWriter
-    DBWriter --- MainDB
-    
-    %% Spatial Path
-    SpatialSvc --- SpatialDB
-    SpatialDB -.-> |Sync/ETL| MainDB
+    %% Auth
+    OAuth2[Kakao OAuth2]
+
+    %% Relationships
+    Web <-->|REST API| APILayer
+    Web <-->|WebSocket STOMP| WSBroker
+
+    PixelCtrl --> PixelSvc
+
+    PixelSvc -->|Check / Set TTL| RedisCooldown
+    PixelSvc -->|Redisson Lock\nWrite Color| RedisPixel
+    PixelSvc -->|ZINCRBY| RedisHeatmap
+    PixelSvc -.->|Produce pixel-updates event| Kafka
+
+    Kafka -.->|Consume| PixelConsumer
+    PixelConsumer -->|ZINCRBY / ZDECRBY| RedisRank
+    PixelConsumer -->|INSERT / UPDATE| MySQL
+    PixelConsumer -.->|Broadcast /sub/pixel| WSBroker
+
+    GuildSvc --- MySQL
+    GuildSvc --- S3
+    RankSvc --- RedisRank
+
+    Web -->|Kakao Login| OAuth2
+    OAuth2 -->|Session UserId| AppServer
 ```
 
 1. Client Layer
