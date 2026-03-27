@@ -1,6 +1,7 @@
 package com.thepixelwar.consumer;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.thepixelwar.constant.PixelConstants;
 import com.thepixelwar.dto.PixelRequest;
 import com.thepixelwar.entity.PixelEntity;
 import com.thepixelwar.repository.PixelRepository;
@@ -22,10 +23,6 @@ public class PixelConsumer {
     private final SimpMessagingTemplate messagingTemplate;
     private final RankingService rankingService; // [추가] 랭킹 서비스 주입
 
-    // [설정] PixelService와 반드시 일치해야 함
-    private static final double GRID_SIZE = 0.0003;
-    private static final double EPSILON = 0.0000001;
-
     @KafkaListener(topics = "pixel-updates", groupId = "pixel-war-group")
     @Transactional
     public void consume(String message) {
@@ -33,8 +30,8 @@ public class PixelConsumer {
             PixelRequest request = objectMapper.readValue(message, PixelRequest.class);
 
             // 좌표 계산 (Service와 동일)
-            int x = (int) Math.floor((request.lat() + EPSILON) / GRID_SIZE);
-            int y = (int) Math.floor((request.lng() + EPSILON) / GRID_SIZE);
+            int x = (int) Math.floor((request.lat() + PixelConstants.EPSILON) / PixelConstants.GRID_SIZE);
+            int y = (int) Math.floor((request.lng() + PixelConstants.EPSILON) / PixelConstants.GRID_SIZE);
 
             PixelEntity existingPixel = pixelRepository.findByCoords(x, y);
             String newOwner = request.userId(); // 현재 픽셀을 찍은 사람
@@ -62,8 +59,8 @@ public class PixelConsumer {
             }
 
             // 클라이언트 화면 업데이트용 좌표 계산
-            double snappedLat = x * GRID_SIZE;
-            double snappedLng = y * GRID_SIZE;
+            double snappedLat = x * PixelConstants.GRID_SIZE;
+            double snappedLng = y * PixelConstants.GRID_SIZE;
 
             PixelRequest snappedRequest = new PixelRequest(snappedLat, snappedLng, request.color(), newOwner);
 

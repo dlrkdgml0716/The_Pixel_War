@@ -2,6 +2,7 @@ package com.thepixelwar.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.thepixelwar.constant.PixelConstants;
 import com.thepixelwar.dto.PixelRequest;
 import com.thepixelwar.entity.PixelEntity;
 import com.thepixelwar.repository.PixelRepository;
@@ -34,10 +35,7 @@ public class PixelService {
     private final ObjectMapper objectMapper;
     private final PixelRepository pixelRepository;
 
-    // [설정] HTML과 동일한 격자 크기
-    private static final double GRID_SIZE = 0.0003;
     private static final long COOLDOWN_SECONDS = 5;
-    private static final double EPSILON = 0.0000001;
 
     /**
      * 1. 픽셀 찍기 (쓰기)
@@ -52,11 +50,11 @@ public class PixelService {
         }
 
         // 좌표 계산
-        int x = (int) Math.floor((request.lat() + EPSILON) / GRID_SIZE);
-        int y = (int) Math.floor((request.lng() + EPSILON) / GRID_SIZE);
+        int x = (int) Math.floor((request.lat() + PixelConstants.EPSILON) / PixelConstants.GRID_SIZE);
+        int y = (int) Math.floor((request.lng() + PixelConstants.EPSILON) / PixelConstants.GRID_SIZE);
 
-        double snappedLat = x * GRID_SIZE;
-        double snappedLng = y * GRID_SIZE;
+        double snappedLat = x * PixelConstants.GRID_SIZE;
+        double snappedLng = y * PixelConstants.GRID_SIZE;
 
         PixelRequest snappedRequest = new PixelRequest(snappedLat, snappedLng, request.color(), userId);
 
@@ -134,8 +132,8 @@ public class PixelService {
                     // 여기서는 프론트가 위치를 알 수 있게 좌표만 잘 넘겨줍니다.
                     // color 필드에 score(점수)를 넣어서 보내는 꼼수도 가능하지만, 일단 기본 구조 유지
                     result.add(new PixelRequest(
-                            x * GRID_SIZE,
-                            y * GRID_SIZE,
+                            x * PixelConstants.GRID_SIZE,
+                            y * PixelConstants.GRID_SIZE,
                             String.valueOf(score.intValue()), // 색상 필드에 '점수'를 문자열로 담아 보냄 (프론트에서 처리)
                             "SYSTEM"
                     ));
@@ -150,15 +148,15 @@ public class PixelService {
      */
     @Transactional(readOnly = true)
     public List<PixelRequest> getPixelsInBounds(double minLat, double maxLat, double minLng, double maxLng) {
-        int minX = (int) Math.floor((minLat + EPSILON) / GRID_SIZE);
-        int maxX = (int) Math.ceil((maxLat + EPSILON) / GRID_SIZE);
-        int minY = (int) Math.floor((minLng + EPSILON) / GRID_SIZE);
-        int maxY = (int) Math.ceil((maxLng + EPSILON) / GRID_SIZE);
+        int minX = (int) Math.floor((minLat + PixelConstants.EPSILON) / PixelConstants.GRID_SIZE);
+        int maxX = (int) Math.ceil((maxLat + PixelConstants.EPSILON) / PixelConstants.GRID_SIZE);
+        int minY = (int) Math.floor((minLng + PixelConstants.EPSILON) / PixelConstants.GRID_SIZE);
+        int maxY = (int) Math.ceil((maxLng + PixelConstants.EPSILON) / PixelConstants.GRID_SIZE);
 
         return pixelRepository.findByArea(minX, maxX, minY, maxY).stream()
                 .map(entity -> new PixelRequest(
-                        entity.getX() * GRID_SIZE,
-                        entity.getY() * GRID_SIZE,
+                        entity.getX() * PixelConstants.GRID_SIZE,
+                        entity.getY() * PixelConstants.GRID_SIZE,
                         entity.getColor(),
                         entity.getUserId()))
                 .toList();
@@ -180,8 +178,8 @@ public class PixelService {
     public List<PixelRequest> getAllPixels() {
         return pixelRepository.findAll().stream()
                 .map(entity -> new PixelRequest(
-                        entity.getX() * GRID_SIZE,
-                        entity.getY() * GRID_SIZE,
+                        entity.getX() * PixelConstants.GRID_SIZE,
+                        entity.getY() * PixelConstants.GRID_SIZE,
                         entity.getColor(),
                         entity.getUserId()))
                 .toList();
