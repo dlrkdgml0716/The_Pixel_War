@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -20,25 +21,33 @@ public class S3UploadService {
     @Value("${cloud.aws.s3.bucket}")
     private String bucket;
 
+    private static final Set<String> ALLOWED_CONTENT_TYPES = Set.of(
+            "image/jpeg", "image/png", "image/gif", "image/webp"
+    );
+
     public String uploadBlueprint(MultipartFile multipartFile) throws IOException {
-        // 1. 파일이 비어있는지 확인
         if (multipartFile.isEmpty()) {
             throw new IllegalArgumentException("이미지 파일이 존재하지 않습니다.");
         }
 
-        // 2. 파일 이름 중복 방지를 위한 UUID 생성 (예: 1234abcd_akatsuki.png)
-        String originalFilename = multipartFile.getOriginalFilename();
-        String uniqueFileName = "blueprints/" + UUID.randomUUID() + "_" + originalFilename;
+        String contentType = multipartFile.getContentType();
+        if (contentType == null || !ALLOWED_CONTENT_TYPES.contains(contentType)) {
+            throw new IllegalArgumentException("허용되지 않는 파일 형식입니다. (jpg, png, gif, webp만 가능)");
+        }
 
-        // 3. 파일의 메타데이터(크기, 확장자 등) 설정
+        // 원본 파일명에서 확장자만 추출하고, 경로 조작 공격 방지를 위해 UUID로 파일명 생성
+        String originalFilename = multipartFile.getOriginalFilename();
+        String extension = (originalFilename != null && originalFilename.contains("."))
+                ? originalFilename.substring(originalFilename.lastIndexOf("."))
+                : "";
+        String uniqueFileName = "blueprints/" + UUID.randomUUID() + extension;
+
         ObjectMetadata metadata = new ObjectMetadata();
         metadata.setContentLength(multipartFile.getSize());
-        metadata.setContentType(multipartFile.getContentType());
+        metadata.setContentType(contentType);
 
-        // 4. S3 양동이에 파일 업로드! (bucket 이름, 파일 이름, 파일 데이터, 메타데이터)
         amazonS3.putObject(new PutObjectRequest(bucket, uniqueFileName, multipartFile.getInputStream(), metadata));
 
-        // 5. 업로드된 파일의 S3 접근 URL을 텍스트로 반환 (이 URL이 DB에 저장됨)
         return amazonS3.getUrl(bucket, uniqueFileName).toString();
     }
 }

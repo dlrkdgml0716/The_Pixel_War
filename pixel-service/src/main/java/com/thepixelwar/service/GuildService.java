@@ -10,9 +10,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+
 
 @Service
 @RequiredArgsConstructor
@@ -60,10 +62,9 @@ public class GuildService {
         if (guild == null) return "NO_GUILD";
 
         member.joinGuild(null);
-        memberRepository.save(member);
 
-        List<MemberEntity> remainingMembers = memberRepository.findAll().stream()
-                .filter(m -> guild.equals(m.getGuild()))
+        List<MemberEntity> remainingMembers = guild.getMembers().stream()
+                .filter(m -> !m.getProviderId().equals(providerId))
                 .collect(Collectors.toList());
 
         if (remainingMembers.isEmpty()) {
@@ -105,25 +106,24 @@ public class GuildService {
         MemberEntity master = memberRepository.findByProviderId(guild.getMasterProviderId()).orElse(null);
         String masterName = (master != null) ? master.getNickname() : "Unknown";
 
-        return Map.of(
-                "id", guild.getId(),
-                "name", guild.getName(),
-                "description", guild.getDescription() == null ? "" : guild.getDescription(),
-                "masterName", masterName,
-                "memberCount", guild.getMembers().size(),
-                "maxMembers", MAX_MEMBERS,
-                "isMaster", providerId.equals(guild.getMasterProviderId()),
-                // 👇 청사진 정보 추가
-                "blueprintUrl", guild.getBlueprintUrl() == null ? "" : guild.getBlueprintUrl(),
-                "blueprintLat", guild.getBlueprintLat() == null ? 0.0 : guild.getBlueprintLat(),
-                "blueprintLng", guild.getBlueprintLng() == null ? 0.0 : guild.getBlueprintLng()
-        );
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("id", guild.getId());
+        result.put("name", guild.getName());
+        result.put("description", guild.getDescription() == null ? "" : guild.getDescription());
+        result.put("masterName", masterName);
+        result.put("memberCount", guild.getMembers().size());
+        result.put("maxMembers", MAX_MEMBERS);
+        result.put("isMaster", providerId.equals(guild.getMasterProviderId()));
+        result.put("blueprintUrl", guild.getBlueprintUrl() == null ? "" : guild.getBlueprintUrl());
+        result.put("blueprintLat", guild.getBlueprintLat() == null ? 0.0 : guild.getBlueprintLat());
+        result.put("blueprintLng", guild.getBlueprintLng() == null ? 0.0 : guild.getBlueprintLng());
+        return result;
     }
 
     // 5. 전체 길드 목록
     @Transactional(readOnly = true)
     public List<Map<String, Object>> getAllGuilds() {
-        return guildRepository.findAll().stream()
+        return guildRepository.findAllWithMembers().stream()
                 .map(g -> Map.<String, Object>of(
                         "id", g.getId(),
                         "name", g.getName(),
