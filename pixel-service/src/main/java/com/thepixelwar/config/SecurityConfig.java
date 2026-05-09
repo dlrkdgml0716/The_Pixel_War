@@ -13,7 +13,7 @@ import org.springframework.security.web.SecurityFilterChain;
 
 // Spring Security(spring-boot-starter-security) 브라우저 요청에서 오는 쿠키를 검사하여 로그인 유무확인 가능
 
-@Configuration // 설정 파일임을 명시
+@Configuration // 설정 파일임을 명시 -> Spring 컨테이너가 시작될 때 해당 클래스 파일을 먼저 읽음, Bean을 어떻게 다뤄야할지 설명
 @EnableWebSecurity // 요청이 controller에 가기전에 설정 파일에 조건에 부합하는지 확인하기 위함(Filter Chain)
 @RequiredArgsConstructor // 다른 클래스의 객체를 사용함에 있어서 이미 생성된 객체를 공유하기 위함 -> 자동 의존성 주입
 // final이 붙은 필드에 대해 생성자를 만들어 줌으로써 Spring이 관리하는 객체를 자동으로 주입받음

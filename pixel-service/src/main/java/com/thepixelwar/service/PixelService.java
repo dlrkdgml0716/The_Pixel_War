@@ -1,6 +1,6 @@
 package com.thepixelwar.service;
 
-import com.thepixelwar.constant.PixelConstants;
+import com.thepixelwar.entity.PixelConstants;
 import com.thepixelwar.dto.PixelRequest;
 import com.thepixelwar.entity.PixelEntity;
 import com.thepixelwar.repository.PixelRepository;

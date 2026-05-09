@@ -1,4 +1,4 @@
-package com.thepixelwar.constant;
+package com.thepixelwar.entity;
 
 public final class PixelConstants {
 

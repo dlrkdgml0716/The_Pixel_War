@@ -2,9 +2,9 @@ package com.thepixelwar.service;
 
 import com.thepixelwar.dto.GuildCreateRequest;
 import com.thepixelwar.entity.GuildEntity;
-import com.thepixelwar.entity.MemberEntity;
+import com.thepixelwar.entity.User;
 import com.thepixelwar.repository.GuildRepository;
-import com.thepixelwar.repository.MemberRepository;
+import com.thepixelwar.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,7 +22,7 @@ import java.util.stream.Collectors;
 public class GuildService {
 
     private final GuildRepository guildRepository;
-    private final MemberRepository memberRepository;
+    private final UserRepository userRepository;
 
     private static final int MAX_MEMBERS = 30;
 
@@ -31,7 +31,7 @@ public class GuildService {
         if (guildRepository.existsByName(request.name())) {
             return "이미 존재하는 길드 이름입니다.";
         }
-        MemberEntity member = getOrCreateMember(providerId, nickname);
+        User member = getMember(providerId);
         if (member.getGuild() != null) return "ALREADY_HAS_GUILD";
 
         GuildEntity guild = guildRepository.save(new GuildEntity(request.name(), request.description(), providerId));
@@ -41,7 +41,7 @@ public class GuildService {
 
     // 2. 길드 가입
     public String joinGuild(Long guildId, String providerId, String nickname) {
-        MemberEntity member = getOrCreateMember(providerId, nickname);
+        User member = getMember(providerId);
         if (member.getGuild() != null) return "ALREADY_HAS_GUILD";
 
         GuildEntity guild = guildRepository.findById(guildId)
@@ -55,15 +55,14 @@ public class GuildService {
 
     // 3. 길드 탈퇴
     public String leaveGuild(String providerId) {
-        MemberEntity member = memberRepository.findByProviderId(providerId)
-                .orElseThrow(() -> new IllegalArgumentException("유저가 없습니다."));
+        User member = getMember(providerId);
 
         GuildEntity guild = member.getGuild();
         if (guild == null) return "NO_GUILD";
 
         member.joinGuild(null);
 
-        List<MemberEntity> remainingMembers = guild.getMembers().stream()
+        List<User> remainingMembers = guild.getMembers().stream()
                 .filter(m -> !m.getProviderId().equals(providerId))
                 .collect(Collectors.toList());
 
@@ -72,7 +71,7 @@ public class GuildService {
             return "GUILD_DELETED";
         } else {
             if (providerId.equals(guild.getMasterProviderId())) {
-                remainingMembers.sort(Comparator.comparing(MemberEntity::getId));
+                remainingMembers.sort(Comparator.comparing(User::getId));
                 guild.changeMaster(remainingMembers.get(0).getProviderId());
             }
             return "SUCCESS";
@@ -81,8 +80,7 @@ public class GuildService {
 
     // 🗺️ [신규] 청사진 업데이트 (길드장 전용)
     public String updateBlueprint(String providerId, String url, Double lat, Double lng) {
-        MemberEntity member = memberRepository.findByProviderId(providerId)
-                .orElseThrow(() -> new IllegalArgumentException("유저 없음"));
+        User member = getMember(providerId);
 
         GuildEntity guild = member.getGuild();
         if (guild == null) return "NO_GUILD";
@@ -99,11 +97,11 @@ public class GuildService {
     // 4. 내 길드 상세 정보 조회 (청사진 정보 추가됨)
     @Transactional(readOnly = true)
     public Map<String, Object> getMyGuildDetail(String providerId) {
-        MemberEntity member = memberRepository.findByProviderId(providerId).orElse(null);
+        User member = userRepository.findByProviderId(providerId).orElse(null);
         if (member == null || member.getGuild() == null) return null;
 
         GuildEntity guild = member.getGuild();
-        MemberEntity master = memberRepository.findByProviderId(guild.getMasterProviderId()).orElse(null);
+        User master = userRepository.findByProviderId(guild.getMasterProviderId()).orElse(null);
         String masterName = (master != null) ? master.getNickname() : "Unknown";
 
         Map<String, Object> result = new LinkedHashMap<>();
@@ -135,14 +133,14 @@ public class GuildService {
     }
 
     public Long getMyGuildId(String providerId) {
-        return memberRepository.findByProviderId(providerId)
-                .map(MemberEntity::getGuild)
+        return userRepository.findByProviderId(providerId)
+                .map(User::getGuild)
                 .map(GuildEntity::getId)
                 .orElse(null);
     }
 
-    private MemberEntity getOrCreateMember(String providerId, String nickname) {
-        return memberRepository.findByProviderId(providerId)
-                .orElseGet(() -> memberRepository.save(new MemberEntity(providerId, nickname)));
+    private User getMember(String providerId) {
+        return userRepository.findByProviderId(providerId)
+                .orElseThrow(() -> new IllegalArgumentException("유저가 없습니다."));
     }
 }
