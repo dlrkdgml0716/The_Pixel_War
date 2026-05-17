@@ -29,7 +29,7 @@ graph TD
         end
 
         subgraph RealtimeLayer [Real-time Layer]
-            WSBroker[WebSocket Broker\nSTOMP /ws-pixel\n/sub/pixel\n/sub/chat/room/{roomId}]
+            WSBroker[WebSocket Broker\nSTOMP /ws-pixel\n/sub/pixel\n/sub/chat/room/:roomId]
             ChatCtrl[ChatController\n/pub/chat/message]
         end
     end
