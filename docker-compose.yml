@@ -28,7 +28,7 @@ services:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: pixelwar
     ports:
-      - "3306:3306"
+      - "3307:3306"
     volumes:
       - ./mysql_data:/var/lib/mysql # 데이터가 날아가지 않게 로컬에 저장
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci

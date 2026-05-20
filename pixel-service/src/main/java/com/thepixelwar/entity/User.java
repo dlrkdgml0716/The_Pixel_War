@@ -14,7 +14,7 @@ public class User {
 
     @Id // primary key 지정
     @GeneratedValue(strategy = GenerationType.IDENTITY) // mysql AUTO_INCREMENT와 동일
-    private Long id;
+    private Long i;
 
     private String provider;    // "kakao"
     private String providerId;  // 카카오 회원번호 (예: 324512...)
