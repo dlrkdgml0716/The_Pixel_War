@@ -21,7 +21,9 @@ public class GuildEntity {
 
     private String description;
 
-    private String masterProviderId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "master_user_id")
+    private User master;
 
     @Column(length = 2000) // URL이 길 수 있으므로 넉넉하게
     private String blueprintUrl;
@@ -32,14 +34,14 @@ public class GuildEntity {
     private List<User> members = new ArrayList<>();
 
     @Builder
-    public GuildEntity(String name, String description, String masterProviderId) {
+    public GuildEntity(String name, String description, User master) {
         this.name = name;
         this.description = description;
-        this.masterProviderId = masterProviderId;
+        this.master = master;
     }
 
-    public void changeMaster(String newMasterProviderId) {
-        this.masterProviderId = newMasterProviderId;
+    public void changeMaster(User newMaster) {
+        this.master = newMaster;
     }
 
     public void updateBlueprint(String url, Double lat, Double lng) {

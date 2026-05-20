@@ -1,10 +1,10 @@
 package com.thepixelwar.entity;
 
+import com.thepixelwar.entity.User;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import jakarta.persistence.Index;
 
 @Entity // 데이터의 집합을 의미하고 DB 테이블과 1:1로 매핑되는 파일임을 선언
 @Table(name = "pixels",
@@ -24,12 +24,15 @@ public class PixelEntity {
     private int x;
     private int y;
     private String color;
-    private String userId;
 
-    public PixelEntity(int x, int y, String color, String userId) {
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id")
+    private User user;
+
+    public PixelEntity(int x, int y, String color, User user) {
         this.x = x;
         this.y = y;
         this.color = color;
-        this.userId = userId;
+        this.user = user;
     }
 }

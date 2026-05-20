@@ -77,6 +77,7 @@ graph TD
 ```
 <img width="819" height="914" alt="스크린샷 2026-05-20 165330" src="https://github.com/user-attachments/assets/83189975-e0cb-4a20-b005-112889225b7f" />
 
+<img width="914" height="653" alt="스크린샷 2026-05-20 184429" src="https://github.com/user-attachments/assets/ed4ba10d-4afd-40ad-ad64-55be115c33a5" />
 ## 1. Client Layer
 - Naver Maps 위에 HTML5 Canvas 오버레이를 적용하여 수만 개의 픽셀을 DOM 없이 렌더링, 브라우저 과부하 방지
 - SockJS / STOMP 기반 WebSocket으로 픽셀 업데이트 및 채팅 메시지를 실시간으로 동기화

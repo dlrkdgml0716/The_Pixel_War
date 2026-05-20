@@ -34,7 +34,7 @@ public class GuildService {
         User member = getMember(providerId);
         if (member.getGuild() != null) return "ALREADY_HAS_GUILD";
 
-        GuildEntity guild = guildRepository.save(new GuildEntity(request.name(), request.description(), providerId));
+        GuildEntity guild = guildRepository.save(new GuildEntity(request.name(), request.description(), member));
         member.joinGuild(guild);
         return "SUCCESS";
     }
@@ -70,9 +70,9 @@ public class GuildService {
             guildRepository.delete(guild);
             return "GUILD_DELETED";
         } else {
-            if (providerId.equals(guild.getMasterProviderId())) {
+            if (guild.getMaster().getProviderId().equals(providerId)) {
                 remainingMembers.sort(Comparator.comparing(User::getId));
-                guild.changeMaster(remainingMembers.get(0).getProviderId());
+                guild.changeMaster(remainingMembers.get(0));
             }
             return "SUCCESS";
         }
@@ -86,7 +86,7 @@ public class GuildService {
         if (guild == null) return "NO_GUILD";
 
         // 길드장 권한 체크
-        if (!guild.getMasterProviderId().equals(providerId)) {
+        if (!guild.getMaster().getProviderId().equals(providerId)) {
             return "NOT_MASTER";
         }
 
@@ -101,7 +101,7 @@ public class GuildService {
         if (member == null || member.getGuild() == null) return null;
 
         GuildEntity guild = member.getGuild();
-        User master = userRepository.findByProviderId(guild.getMasterProviderId()).orElse(null);
+        User master = guild.getMaster();
         String masterName = (master != null) ? master.getNickname() : "Unknown";
 
         Map<String, Object> result = new LinkedHashMap<>();
@@ -111,7 +111,7 @@ public class GuildService {
         result.put("masterName", masterName);
         result.put("memberCount", guild.getMembers().size());
         result.put("maxMembers", MAX_MEMBERS);
-        result.put("isMaster", providerId.equals(guild.getMasterProviderId()));
+        result.put("isMaster", guild.getMaster() != null && guild.getMaster().getProviderId().equals(providerId));
         result.put("blueprintUrl", guild.getBlueprintUrl() == null ? "" : guild.getBlueprintUrl());
         result.put("blueprintLat", guild.getBlueprintLat() == null ? 0.0 : guild.getBlueprintLat());
         result.put("blueprintLng", guild.getBlueprintLng() == null ? 0.0 : guild.getBlueprintLng());

@@ -12,7 +12,10 @@ public interface PixelRepository extends JpaRepository<PixelEntity, Long> {
     @Query("select p from PixelEntity p where p.x = :x and p.y = :y")
     PixelEntity findByCoords(@Param("x") int x, @Param("y") int y);
 
-    @Query("select p from PixelEntity p where p.x >= :minX and p.x <= :maxX and p.y >= :minY and p.y <= :maxY")
+    @Query("select p from PixelEntity p join fetch p.user where p.x >= :minX and p.x <= :maxX and p.y >= :minY and p.y <= :maxY")
     List<PixelEntity> findByArea(@Param("minX") int minX, @Param("maxX") int maxX,
                                   @Param("minY") int minY, @Param("maxY") int maxY);
+
+    @Query("select p from PixelEntity p join fetch p.user")
+    List<PixelEntity> findAllWithUser();
 }

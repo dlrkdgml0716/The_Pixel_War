@@ -3,6 +3,7 @@ package com.thepixelwar.service;
 import com.thepixelwar.entity.PixelConstants;
 import com.thepixelwar.dto.PixelRequest;
 import com.thepixelwar.entity.PixelEntity;
+import com.thepixelwar.entity.User;
 import com.thepixelwar.repository.PixelRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -37,8 +38,8 @@ public class PixelService {
 
     private static final long COOLDOWN_SECONDS = 5;
 
-    public String updatePixel(PixelRequest request, String userId) {
-        String cooldownKey = "cooldown:" + userId;
+    public String updatePixel(PixelRequest request, User user) {
+        String cooldownKey = "cooldown:" + user.getProviderId();
         Long remainingTime = redisTemplate.getExpire(cooldownKey, TimeUnit.SECONDS);
 
         if (remainingTime != null && remainingTime > 0) {
@@ -51,7 +52,8 @@ public class PixelService {
         double snappedLat = x * PixelConstants.GRID_SIZE;
         double snappedLng = y * PixelConstants.GRID_SIZE;
 
-        PixelRequest snappedRequest = new PixelRequest(snappedLat, snappedLng, request.color(), userId);
+        // WebSocket 브로드캐스트용 — 닉네임을 표시명으로 사용
+        PixelRequest snappedRequest = new PixelRequest(snappedLat, snappedLng, request.color(), user.getNickname());
 
         String lockKey = "pixel:lock:" + x + ":" + y;
         RLock lock = redissonClient.getLock(lockKey);
@@ -69,18 +71,18 @@ public class PixelService {
                         redisTemplate.opsForZSet().incrementScore(heatmapKey, x + ":" + y, 1);
                         redisTemplate.expire(heatmapKey, 2, TimeUnit.HOURS);
 
-                        // DB 저장 + 랭킹 갱신
+                        // DB 저장 + 랭킹 갱신 — 랭킹 키는 불변 식별자인 providerId 사용
                         PixelEntity existing = pixelRepository.findByCoords(x, y);
                         if (existing != null) {
-                            if (!existing.getUserId().equals(userId)) {
-                                rankingService.decreaseScore(existing.getUserId());
-                                rankingService.increaseScore(userId);
+                            if (!existing.getUser().getProviderId().equals(user.getProviderId())) {
+                                rankingService.decreaseScore(existing.getUser().getProviderId());
+                                rankingService.increaseScore(user.getProviderId());
                             }
                             existing.setColor(request.color());
-                            existing.setUserId(userId);
+                            existing.setUser(user);
                         } else {
-                            rankingService.increaseScore(userId);
-                            pixelRepository.save(new PixelEntity(x, y, request.color(), userId));
+                            rankingService.increaseScore(user.getProviderId());
+                            pixelRepository.save(new PixelEntity(x, y, request.color(), user));
                         }
 
                         // 쿨타임 설정
@@ -144,7 +146,7 @@ public class PixelService {
                         entity.getX() * PixelConstants.GRID_SIZE,
                         entity.getY() * PixelConstants.GRID_SIZE,
                         entity.getColor(),
-                        entity.getUserId()))
+                        entity.getUser().getNickname()))
                 .toList();
     }
 
@@ -156,12 +158,12 @@ public class PixelService {
 
     @Transactional(readOnly = true)
     public List<PixelRequest> getAllPixels() {
-        return pixelRepository.findAll().stream()
+        return pixelRepository.findAllWithUser().stream()
                 .map(entity -> new PixelRequest(
                         entity.getX() * PixelConstants.GRID_SIZE,
                         entity.getY() * PixelConstants.GRID_SIZE,
                         entity.getColor(),
-                        entity.getUserId()))
+                        entity.getUser().getNickname()))
                 .toList();
     }
 }

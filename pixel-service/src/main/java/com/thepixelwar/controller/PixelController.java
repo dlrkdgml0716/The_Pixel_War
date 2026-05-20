@@ -19,9 +19,8 @@ public class PixelController {
 
     @PostMapping // http 메서드 post만 처리
     public String updatePixel(@RequestBody PixelRequest request,
-                              @AuthenticationPrincipal CustomUserDetails principal) { // 받은 요청을 PixelRequest 객체로 변환
-        String userId = principal.getNickname(); // ✅ 서버에서 추출
-        return pixelService.updatePixel(request, userId); // userId 별도로 전달
+                              @AuthenticationPrincipal CustomUserDetails principal) {
+        return pixelService.updatePixel(request, principal.user());
     }
     @GetMapping("/{x}/{y}")
     public String getPixel(@PathVariable int x, @PathVariable int y) {
