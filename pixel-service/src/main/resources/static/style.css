@@ -127,6 +127,18 @@ body { margin: 0; padding: 0; overflow: hidden; background-color: #1a1a1a; font-
 .hidden { display: none !important; }
 .attack-cursor { cursor: crosshair !important; }
 
+/* 중간 해상도 반응형 (모니터 반반 화면 등 ~1080px) */
+@media (max-width: 1080px) {
+    #ui-chat {
+        width: 260px;
+        height: 240px;
+        bottom: 100px;
+    }
+    #minimap-container {
+        bottom: 100px;
+    }
+}
+
 /* 모바일 반응형 */
 @media (max-width: 600px) {
     #ui-bottom-bar { width: 90%; min-width: unset; bottom: 20px; padding: 6px 10px; }
