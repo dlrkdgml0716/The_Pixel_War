@@ -420,6 +420,8 @@ naver.maps.Event.addListener(map, 'click', function(e) {
     if (!KOREA_BOUNDS.hasLatLng(new naver.maps.LatLng(snapLat, snapLng))) { alert("서비스 지역이 아닙니다."); return; }
     const color = document.getElementById('colorPicker').value;
     const newPixel = { lat: snapLat, lng: snapLng, color: color, userId: myNickname };
+    const key = `${snapLat.toFixed(6)},${snapLng.toFixed(6)}`;
+    const previousPixel = pixelMap.get(key);
     updatePixelData(newPixel);
     fetch('/api/pixels', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newPixel) })
     .then(res => res.text()).then(result => {
@@ -427,9 +429,9 @@ naver.maps.Event.addListener(map, 'click', function(e) {
         else if (result.includes("쿨타임")) {
             const remaining = result.match(/\d+/) ? parseInt(result.match(/\d+/)[0]) : 5;
             startCooldown(remaining);
-            pixelMap.delete(`${snapLat.toFixed(6)},${snapLng.toFixed(6)}`); scheduleDraw();
-        } else { alert(result); pixelMap.delete(`${snapLat.toFixed(6)},${snapLng.toFixed(6)}`); scheduleDraw(); }
-    }).catch(err => { console.error(err); pixelMap.delete(`${snapLat.toFixed(6)},${snapLng.toFixed(6)}`); scheduleDraw(); });
+            previousPixel ? pixelMap.set(key, previousPixel) : pixelMap.delete(key); scheduleDraw();
+        } else { alert(result); previousPixel ? pixelMap.set(key, previousPixel) : pixelMap.delete(key); scheduleDraw(); }
+    }).catch(err => { console.error(err); previousPixel ? pixelMap.set(key, previousPixel) : pixelMap.delete(key); scheduleDraw(); });
 });
 
 const modeBtn = document.getElementById('modeBtn');
