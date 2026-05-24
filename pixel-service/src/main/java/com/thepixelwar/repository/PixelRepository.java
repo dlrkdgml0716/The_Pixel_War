@@ -18,4 +18,7 @@ public interface PixelRepository extends JpaRepository<PixelEntity, Long> {
 
     @Query("select p from PixelEntity p join fetch p.user")
     List<PixelEntity> findAllWithUser();
+
+    @Query("select p.user.providerId, count(p) from PixelEntity p group by p.user.providerId")
+    List<Object[]> countPixelsByUser();
 }

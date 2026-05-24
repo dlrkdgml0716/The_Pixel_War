@@ -2,8 +2,12 @@ package com.thepixelwar.service;
 
 import com.thepixelwar.dto.RankResponse;
 import com.thepixelwar.entity.User;
+import com.thepixelwar.repository.PixelRepository;
 import com.thepixelwar.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.stereotype.Service;
@@ -13,13 +17,27 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class RankingService {
 
     private final StringRedisTemplate redisTemplate;
     private final UserRepository userRepository;
+    private final PixelRepository pixelRepository;
     private static final String RANKING_KEY = "pixel-war:ranking";
+
+    @Transactional(readOnly = true)
+    @EventListener(ApplicationReadyEvent.class)
+    public void rebuildRanking() {
+        log.info("랭킹 캐시 재구성 시작");
+        List<Object[]> counts = pixelRepository.countPixelsByUser();
+        redisTemplate.delete(RANKING_KEY);
+        counts.forEach(row ->
+            redisTemplate.opsForZSet().add(RANKING_KEY, (String) row[0], ((Long) row[1]).doubleValue())
+        );
+        log.info("랭킹 캐시 재구성 완료: {}명", counts.size());
+    }
 
     // 점수 증가 (빈 땅 먹음 or 남의 땅 뺏음)
     public void increaseScore(String providerId) {
