@@ -60,13 +60,14 @@ public class GuildService {
         GuildEntity guild = member.getGuild();
         if (guild == null) return "NO_GUILD";
 
-        member.joinGuild(null);
-
         List<User> remainingMembers = guild.getMembers().stream()
                 .filter(m -> !m.getProviderId().equals(providerId))
                 .collect(Collectors.toList());
 
+        member.joinGuild(null);
+
         if (remainingMembers.isEmpty()) {
+            userRepository.saveAndFlush(member); // FK 제약 해제 후 길드 삭제
             guildRepository.delete(guild);
             return "GUILD_DELETED";
         } else {
