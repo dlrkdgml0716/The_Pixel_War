@@ -15,7 +15,11 @@
 
 ## 시연
 
-https://github.com/dlrkdgml0716/The_Pixel_War/assets/PLACEHOLDER/your-video.mp4
+<p align="center">
+  <a href="https://youtu.be/KGTUfennwBE">
+    <img src="https://img.youtube.com/vi/KGTUfennwBE/maxresdefault.jpg" width="80%" alt="시연 영상"/>
+  </a>
+</p>
 
 > 두 브라우저(Chrome / Edge)를 나란히 띄워, 한쪽에서 픽셀을 찍었을 때 다른 쪽에 즉시 반영되는 WebSocket 동기화와, 쿨다운 동작을 확인할 수 있습니다.
 
