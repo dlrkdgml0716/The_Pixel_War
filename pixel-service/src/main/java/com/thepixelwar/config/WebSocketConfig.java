@@ -22,7 +22,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         registry.addEndpoint("/ws-pixel") // 프론트엔드에서 웹소켓 연결을 처음 시도할 때(handshake) 접속하는 엔드포인트 지정
-                .setAllowedOriginPatterns("*") // 모든 도메인 허용(CORS 에러 방지) - 실제 개발이 끝나면 도메인 변경
+                .setAllowedOriginPatterns("http://13.124.236.83:8080")
                 .withSockJS(); // 웹소켓을 지원하지 않는 옛날 브라우저, 네이트크 등에 문제로 막힘을 SockJS가 방지(Polling 등 꼼수를 사용하여 웹소켓이 동작하는 것처럼 보임)
     }
 }

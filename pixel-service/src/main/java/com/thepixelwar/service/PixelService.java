@@ -1,7 +1,9 @@
 package com.thepixelwar.service;
 
 import com.thepixelwar.entity.PixelConstants;
+import com.thepixelwar.dto.HotPixelResponse;
 import com.thepixelwar.dto.PixelRequest;
+import com.thepixelwar.dto.PixelResponse;
 import com.thepixelwar.entity.PixelEntity;
 import com.thepixelwar.entity.User;
 import com.thepixelwar.repository.PixelRepository;
@@ -53,7 +55,7 @@ public class PixelService {
         double snappedLng = y * PixelConstants.GRID_SIZE;
 
         // WebSocket 브로드캐스트용 — 닉네임을 표시명으로 사용
-        PixelRequest snappedRequest = new PixelRequest(snappedLat, snappedLng, request.color(), user.getNickname());
+        PixelResponse pixelResponse = new PixelResponse(snappedLat, snappedLng, request.color(), user.getNickname());
 
         String lockKey = "pixel:lock:" + x + ":" + y;
         RLock lock = redissonClient.getLock(lockKey);
@@ -64,7 +66,7 @@ public class PixelService {
                     // 트랜잭션이 락 내부에서 커밋되므로 락 해제 전에 DB 변경이 확정됨
                     transactionTemplate.executeWithoutResult(status -> {
                         // Redis 캐시 저장
-                        redisTemplate.opsForValue().set("pixel:" + x + ":" + y, snappedRequest.color());
+                        redisTemplate.opsForValue().set("pixel:" + x + ":" + y, pixelResponse.color());
 
                         // 히트맵 갱신
                         String heatmapKey = "heatmap:" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd:HH"));
@@ -90,7 +92,7 @@ public class PixelService {
                     }); // ← 여기서 트랜잭션 커밋 완료
 
                     // WebSocket 브로드캐스트는 커밋 후 실행
-                    messagingTemplate.convertAndSend("/sub/pixel", snappedRequest);
+                    messagingTemplate.convertAndSend("/sub/pixel", pixelResponse);
 
                     return "성공";
                 } finally {
@@ -108,12 +110,12 @@ public class PixelService {
     }
 
     @Transactional(readOnly = true)
-    public List<PixelRequest> getHotPixels() {
+    public List<HotPixelResponse> getHotPixels() {
         String heatmapKey = "heatmap:" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd:HH"));
         Set<ZSetOperations.TypedTuple<String>> topPixels =
                 redisTemplate.opsForZSet().reverseRangeWithScores(heatmapKey, 0, 500);
 
-        List<PixelRequest> result = new ArrayList<>();
+        List<HotPixelResponse> result = new ArrayList<>();
         if (topPixels != null) {
             for (ZSetOperations.TypedTuple<String> tuple : topPixels) {
                 String coord = tuple.getValue();
@@ -122,11 +124,10 @@ public class PixelService {
                     String[] parts = coord.split(":");
                     int x = Integer.parseInt(parts[0]);
                     int y = Integer.parseInt(parts[1]);
-                    result.add(new PixelRequest(
+                    result.add(new HotPixelResponse(
                             x * PixelConstants.GRID_SIZE,
                             y * PixelConstants.GRID_SIZE,
-                            String.valueOf(score.intValue()),
-                            "SYSTEM"
+                            score.intValue()
                     ));
                 }
             }
@@ -135,14 +136,14 @@ public class PixelService {
     }
 
     @Transactional(readOnly = true)
-    public List<PixelRequest> getPixelsInBounds(double minLat, double maxLat, double minLng, double maxLng) {
+    public List<PixelResponse> getPixelsInBounds(double minLat, double maxLat, double minLng, double maxLng) {
         int minX = (int) Math.floor((minLat + PixelConstants.EPSILON) / PixelConstants.GRID_SIZE);
         int maxX = (int) Math.ceil((maxLat + PixelConstants.EPSILON) / PixelConstants.GRID_SIZE);
         int minY = (int) Math.floor((minLng + PixelConstants.EPSILON) / PixelConstants.GRID_SIZE);
         int maxY = (int) Math.ceil((maxLng + PixelConstants.EPSILON) / PixelConstants.GRID_SIZE);
 
         return pixelRepository.findByArea(minX, maxX, minY, maxY).stream()
-                .map(entity -> new PixelRequest(
+                .map(entity -> new PixelResponse(
                         entity.getX() * PixelConstants.GRID_SIZE,
                         entity.getY() * PixelConstants.GRID_SIZE,
                         entity.getColor(),
@@ -157,9 +158,9 @@ public class PixelService {
     }
 
     @Transactional(readOnly = true)
-    public List<PixelRequest> getAllPixels() {
+    public List<PixelResponse> getAllPixels() {
         return pixelRepository.findAllWithUser().stream()
-                .map(entity -> new PixelRequest(
+                .map(entity -> new PixelResponse(
                         entity.getX() * PixelConstants.GRID_SIZE,
                         entity.getY() * PixelConstants.GRID_SIZE,
                         entity.getColor(),

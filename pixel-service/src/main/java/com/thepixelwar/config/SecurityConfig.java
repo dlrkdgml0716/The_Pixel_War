@@ -25,7 +25,7 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         // SecurityFilterChain은 해당 파일에 설정한 Filter들을 사슬 처럼 엮어 하나씩 검사하기 위한 타입
         http
-                .csrf(AbstractHttpConfigurer::disable) // 개발 중이라 off, 실제 서비스를 진행할 때는 해킹 막기위해 on
+                .csrf(AbstractHttpConfigurer::disable) // SameSite=Strict 쿠키 정책으로 CSRF 방어 (application.yml 참고)
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .formLogin(AbstractHttpConfigurer::disable)
 

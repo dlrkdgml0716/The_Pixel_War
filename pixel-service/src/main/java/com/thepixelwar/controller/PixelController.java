@@ -1,11 +1,14 @@
 package com.thepixelwar.controller;
 
 import com.thepixelwar.dto.CustomUserDetails;
+import com.thepixelwar.dto.HotPixelResponse;
 import com.thepixelwar.dto.PixelRequest;
+import com.thepixelwar.dto.PixelResponse;
 import com.thepixelwar.service.PixelService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -18,7 +21,7 @@ public class PixelController {
     private final PixelService pixelService; // 의존성 주입
 
     @PostMapping // http 메서드 post만 처리
-    public String updatePixel(@RequestBody PixelRequest request,
+    public String updatePixel(@Valid @RequestBody PixelRequest request,
                               @AuthenticationPrincipal CustomUserDetails principal) {
         return pixelService.updatePixel(request, principal.user());
     }
@@ -28,7 +31,7 @@ public class PixelController {
     }
 
     @GetMapping
-    public List<PixelRequest> getPixels(
+    public List<PixelResponse> getPixels(
             @RequestParam(required = false) Double minLat,
             @RequestParam(required = false) Double maxLat,
             @RequestParam(required = false) Double minLng,
@@ -43,7 +46,7 @@ public class PixelController {
         return pixelService.getPixelsInBounds(minLat, maxLat, minLng, maxLng);
     }
     @GetMapping("/hot")
-    public ResponseEntity<List<PixelRequest>> getHotPixels() {
+    public ResponseEntity<List<HotPixelResponse>> getHotPixels() {
         return ResponseEntity.ok(pixelService.getHotPixels());
     }
 }

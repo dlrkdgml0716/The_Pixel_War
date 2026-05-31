@@ -3,6 +3,7 @@ package com.thepixelwar.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.thepixelwar.dto.CustomUserDetails;
 import com.thepixelwar.dto.PixelRequest;
+import com.thepixelwar.dto.PixelResponse;
 import com.thepixelwar.entity.User;
 import com.thepixelwar.service.PixelService;
 import org.junit.jupiter.api.DisplayName;
@@ -49,8 +50,8 @@ class PixelControllerTest {
     @Test
     @DisplayName("픽셀 찍기 API: 정상 요청 시 200 OK와 '성공' 문자열을 반환한다")
     void updatePixel_ShouldReturnOk() throws Exception {
-        PixelRequest request = new PixelRequest(37.5, 127.5, "red", "user1");
-        given(pixelService.updatePixel(any(PixelRequest.class), anyString())).willReturn("성공");
+        PixelRequest request = new PixelRequest(37.5, 127.5, "red");
+        given(pixelService.updatePixel(any(PixelRequest.class), any(User.class))).willReturn("성공");
 
         mockMvc.perform(post("/api/pixels")
                         .with(authentication(mockAuth()))
@@ -65,7 +66,7 @@ class PixelControllerTest {
     @Test
     @DisplayName("영역 조회 API: 파라미터(minLat 등)를 보내면 리스트를 JSON으로 반환한다")
     void getPixels_ShouldReturnList() throws Exception {
-        PixelRequest pixel1 = new PixelRequest(37.5, 127.5, "red", "user1");
+        PixelResponse pixel1 = new PixelResponse(37.5, 127.5, "red", "user1");
         given(pixelService.getPixelsInBounds(anyDouble(), anyDouble(), anyDouble(), anyDouble()))
                 .willReturn(List.of(pixel1));
 
@@ -76,7 +77,7 @@ class PixelControllerTest {
                         .param("maxLng", "128.0"))
                 .andDo(print())
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].userId").value("user1"))
+                .andExpect(jsonPath("$[0].nickname").value("user1"))
                 .andExpect(jsonPath("$[0].color").value("red"));
     }
 }

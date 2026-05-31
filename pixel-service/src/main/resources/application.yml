@@ -1,3 +1,10 @@
+server:
+  servlet:
+    session:
+      cookie:
+        same-site: strict
+        http-only: true
+
 spring:
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:local}
