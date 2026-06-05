@@ -20,7 +20,10 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
+import org.springframework.transaction.TransactionStatus;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.*;
@@ -53,8 +56,8 @@ class PixelServiceTest {
     void getPixelsInBounds_ShouldReturnPixels_WhenInArea() {
         User user1 = buildUser("p1", "User1");
         User user2 = buildUser("p2", "User2");
-        PixelEntity pixel1 = new PixelEntity(375000, 1275000, "#FF0000", user1);
-        PixelEntity pixel2 = new PixelEntity(376000, 1276000, "#00FF00", user2);
+        PixelEntity pixel1 = new PixelEntity(125000, 425000, "#FF0000", user1); // lat=37.5, lng=127.5
+        PixelEntity pixel2 = new PixelEntity(125500, 425500, "#00FF00", user2); // lat=37.65, lng=127.65
 
         when(pixelRepository.findByArea(anyInt(), anyInt(), anyInt(), anyInt()))
                 .thenReturn(List.of(pixel1, pixel2));
@@ -76,10 +79,9 @@ class PixelServiceTest {
         when(rLock.isHeldByCurrentThread()).thenReturn(true);
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         when(redisTemplate.opsForZSet()).thenReturn(zSetOperations);
-        when(pixelRepository.findByCoords(anyInt(), anyInt())).thenReturn(null); // 빈 땅
+        when(pixelRepository.findByXAndY(anyInt(), anyInt())).thenReturn(Optional.empty()); // 빈 땅
         doAnswer(invocation -> {
-            ((org.springframework.transaction.support.TransactionCallbackWithoutResult)
-                    invocation.getArgument(0)).doInTransactionWithoutResult(null);
+            ((Consumer<TransactionStatus>) invocation.getArgument(0)).accept(null);
             return null;
         }).when(transactionTemplate).executeWithoutResult(any());
 
@@ -106,7 +108,7 @@ class PixelServiceTest {
 
         assertThat(result).isEqualTo("다른 사람이 작업 중입니다.");
         verify(redisTemplate, never()).opsForValue();
-        verify(pixelRepository, never()).findByCoords(anyInt(), anyInt());
+        verify(pixelRepository, never()).findByXAndY(anyInt(), anyInt());
         verify(messagingTemplate, never()).convertAndSend(anyString(), any(Object.class));
     }
 
@@ -123,10 +125,9 @@ class PixelServiceTest {
         when(rLock.isHeldByCurrentThread()).thenReturn(true);
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         when(redisTemplate.opsForZSet()).thenReturn(zSetOperations);
-        when(pixelRepository.findByCoords(anyInt(), anyInt())).thenReturn(existing);
+        when(pixelRepository.findByXAndY(anyInt(), anyInt())).thenReturn(Optional.of(existing));
         doAnswer(invocation -> {
-            ((org.springframework.transaction.support.TransactionCallbackWithoutResult)
-                    invocation.getArgument(0)).doInTransactionWithoutResult(null);
+            ((Consumer<TransactionStatus>) invocation.getArgument(0)).accept(null);
             return null;
         }).when(transactionTemplate).executeWithoutResult(any());
 

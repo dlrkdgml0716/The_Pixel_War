@@ -74,18 +74,20 @@ public class PixelService {
                         redisTemplate.expire(heatmapKey, 2, TimeUnit.HOURS);
 
                         // DB 저장 + 랭킹 갱신 — 랭킹 키는 불변 식별자인 providerId 사용
-                        PixelEntity existing = pixelRepository.findByCoords(x, y);
-                        if (existing != null) {
-                            if (!existing.getUser().getProviderId().equals(user.getProviderId())) {
-                                rankingService.decreaseScore(existing.getUser().getProviderId());
+                        pixelRepository.findByXAndY(x, y).ifPresentOrElse(
+                            existing -> {
+                                if (!existing.getUser().getProviderId().equals(user.getProviderId())) {
+                                    rankingService.decreaseScore(existing.getUser().getProviderId());
+                                    rankingService.increaseScore(user.getProviderId());
+                                }
+                                existing.setColor(request.color());
+                                existing.setUser(user);
+                            },
+                            () -> {
                                 rankingService.increaseScore(user.getProviderId());
+                                pixelRepository.save(new PixelEntity(x, y, request.color(), user));
                             }
-                            existing.setColor(request.color());
-                            existing.setUser(user);
-                        } else {
-                            rankingService.increaseScore(user.getProviderId());
-                            pixelRepository.save(new PixelEntity(x, y, request.color(), user));
-                        }
+                        );
 
                         // 쿨타임 설정
                         redisTemplate.opsForValue().set(cooldownKey, "active", Duration.ofSeconds(COOLDOWN_SECONDS));
@@ -153,8 +155,9 @@ public class PixelService {
 
     @Transactional(readOnly = true)
     public String getPixelColor(int x, int y) {
-        PixelEntity pixel = pixelRepository.findByCoords(x, y);
-        return pixel != null ? pixel.getColor() : "#FFFFFF";
+        return pixelRepository.findByXAndY(x, y)
+                .map(PixelEntity::getColor)
+                .orElse("#FFFFFF");
     }
 
     @Transactional(readOnly = true)

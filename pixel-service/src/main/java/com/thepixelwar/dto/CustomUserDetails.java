@@ -9,7 +9,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 
-// record를 사용하면 모든 필드 매개변수의 getter, 생성자를 자동으로 만들어줌. 
+// record를 사용하면 모든 필드 매개변수의 getter, 모든 필드를 인자로 가지는 생성자, equals/hashCode/toString을 자동으로 만들어주고, private final로 선언.
 public record CustomUserDetails(User user, Map<String, Object> attributes) implements OAuth2User {
                                                                     // 외부 로그인의 유저는 OAuth2User 타입으로 취급
     @Override
