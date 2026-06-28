@@ -16,6 +16,8 @@ import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Duration;
@@ -63,35 +65,38 @@ public class PixelService {
         try {
             if (lock.tryLock(5, 2, TimeUnit.SECONDS)) {
                 try {
-                    // 트랜잭션이 락 내부에서 커밋되므로 락 해제 전에 DB 변경이 확정됨
                     transactionTemplate.executeWithoutResult(status -> {
-                        // Redis 캐시 저장
-                        redisTemplate.opsForValue().set("pixel:" + x + ":" + y, pixelResponse.color());
+                        List<Runnable> rankingOps = new ArrayList<>();
 
-                        // 히트맵 갱신
-                        String heatmapKey = "heatmap:" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd:HH"));
-                        redisTemplate.opsForZSet().incrementScore(heatmapKey, x + ":" + y, 1);
-                        redisTemplate.expire(heatmapKey, 2, TimeUnit.HOURS);
-
-                        // DB 저장 + 랭킹 갱신 — 랭킹 키는 불변 식별자인 providerId 사용
+                        // DB 저장 — 랭킹 변경 내용은 rankingOps에 적재 후 afterCommit에서 실행
                         pixelRepository.findByXAndY(x, y).ifPresentOrElse(
                             existing -> {
                                 if (!existing.getUser().getProviderId().equals(user.getProviderId())) {
-                                    rankingService.decreaseScore(existing.getUser().getProviderId());
-                                    rankingService.increaseScore(user.getProviderId());
+                                    String prevOwner = existing.getUser().getProviderId();
+                                    rankingOps.add(() -> rankingService.decreaseScore(prevOwner));
+                                    rankingOps.add(() -> rankingService.increaseScore(user.getProviderId()));
                                 }
                                 existing.setColor(request.color());
                                 existing.setUser(user);
                             },
                             () -> {
-                                rankingService.increaseScore(user.getProviderId());
+                                rankingOps.add(() -> rankingService.increaseScore(user.getProviderId()));
                                 pixelRepository.save(new PixelEntity(x, y, request.color(), user));
                             }
                         );
 
-                        // 쿨타임 설정
-                        redisTemplate.opsForValue().set(cooldownKey, "active", Duration.ofSeconds(COOLDOWN_SECONDS));
-                    }); // ← 여기서 트랜잭션 커밋 완료
+                        // DB 커밋 후 Redis 연산 — 커밋 실패 시 실행되지 않음
+                        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                            @Override
+                            public void afterCommit() {
+                                rankingOps.forEach(Runnable::run);
+                                String heatmapKey = "heatmap:" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd:HH"));
+                                redisTemplate.opsForZSet().incrementScore(heatmapKey, x + ":" + y, 1);
+                                redisTemplate.expire(heatmapKey, 2, TimeUnit.HOURS);
+                                redisTemplate.opsForValue().set(cooldownKey, "active", Duration.ofSeconds(COOLDOWN_SECONDS));
+                            }
+                        });
+                    }); // ← 여기서 트랜잭션 커밋, afterCommit 순으로 실행
 
                     // WebSocket 브로드캐스트는 커밋 후 실행
                     messagingTemplate.convertAndSend("/sub/pixel", pixelResponse);
