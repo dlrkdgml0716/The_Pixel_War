@@ -508,7 +508,7 @@ function drawHeatmap(hotPixels) {
     heatmapCtx.filter = 'blur(8px)';
     heatmapCtx.globalCompositeOperation = 'lighter';
     hotPixels.forEach(p => {
-        const score = parseInt(p.color);
+        const score = p.hitCount;
         const latLng = new naver.maps.LatLng(p.lat, p.lng);
         if (bounds.hasLatLng(latLng)) {
             const pOffset = projection.fromCoordToOffset(latLng);
